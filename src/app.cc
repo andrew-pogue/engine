@@ -5,13 +5,14 @@
 // PUBLIC API
 //////////
 
-App::App(float width, float height) 
-    : display(width, height)
+App::App(float width, float height, double fixed_time_step) 
+    : fixed_time_step(fixed_time_step)
+    , display(width, height)
     , event_queue()
-    , fixed_update_timer(1.0)
-    , time_stamp(0.0), frame_rate(0.0)
     , textbox(10.0f, 40.0f, width-20.0f, height-50.0f)
     , fps_counter(10.0f, 10.0f, width-20.0f, 20.0f)
+    , rectangle(18.0f, 18.0f, al_map_rgb(255,0,0), 0.0f, 4.0f, 4.0f)
+    , x(width/2.0f), y(height/2.0f)
     , keyboard()
 {
     std::cout << "App()" << '\n';
@@ -19,7 +20,7 @@ App::App(float width, float height)
     event_queue.pause(true);
     event_queue.add_source(al_get_keyboard_event_source());
     event_queue.add_source(display.get_event_source());
-    event_queue.add_source(fixed_update_timer.get_event_source());
+    // event_queue.add_source(fixed_update_timer.get_event_source());
 
     textbox.padding = 10.0f;
     textbox.color = al_map_rgb(0, 155, 0);
@@ -44,29 +45,36 @@ void App::run() {
     std::cout << "run()" << '\n';
 
     ALLEGRO_EVENT event;
-    bool play = true;
+    bool play = true, step = true;
 
     /////////////////////////////////////
     // LOAD GRAPHICS
     /////////////////////////////////////
     // UNPAUSE
     event_queue.pause(false);
-    fixed_update_timer.start();
-    time_stamp = al_get_time();
+    // fixed_update_timer.start();
+    double lag = 0.0, previous_time = al_get_time();
     /////////////////////////////////////
     // MAIN LOOP
     while (play) {
 
-        if (event_queue.is_empty()) {
-            update();
-            render();
-        }
-    
-        event_queue.wait_for_event(event);
-        if (event.type == ALLEGRO_EVENT_TIMER) {
-            fixed_update();
+        if (event_queue.next(event)) {
+            play = handle_event(event);
         } else {
-            play = handle_event(event);    
+            // problem: branch is unreachable if event queue is never empty
+            // problem: running long enough may cause time to overflow
+
+            double current_time = al_get_time();
+            play = update(current_time - previous_time);
+            
+            lag += current_time - previous_time;
+            while (play && lag >= fixed_time_step) {
+                lag -= fixed_time_step;
+                play = fixed_update();
+            }
+            
+            render();
+            previous_time = current_time;  
         }
 
     }
@@ -74,7 +82,7 @@ void App::run() {
     // PAUSE
     event_queue.pause(true);
     event_queue.flush();
-    fixed_update_timer.stop();
+    // fixed_update_timer.stop();
     /////////////////////////////////////
 
 }
@@ -108,28 +116,64 @@ bool App::handle_event(const ALLEGRO_EVENT &event) {
 
 }
 
-void App::update() {
+// visual effects, things that don't change game logic
+// things that don't need to be syncronized in online multiplayer
+bool App::update(double delta_time) {
 
     // ui goes here
-    frame_rate++;
-    double dt = al_get_time() - time_stamp;
-    time_stamp += dt;
+    fps_counter.text.clear();
     auto input = keyboard.poll();
-    textbox.update(dt, input);
+    if (input[ALLEGRO_KEY_UP]) {
+        fps_counter.text += "UP ";
+    } if (input[ALLEGRO_KEY_DOWN]) {
+        fps_counter.text += "DOWN ";
+    } if (input[ALLEGRO_KEY_RIGHT]) {
+        fps_counter.text += "RIGHT ";
+    } if (input[ALLEGRO_KEY_LEFT]) {
+        fps_counter.text += "LEFT ";
+    }
+    
+    // fps_counter.text += "X=";
+    // fps_counter.text += std::to_string(x);
+    // fps_counter.text += " Y=";
+    // fps_counter.text += std::to_string(y);
+
+    // fps_counter.text += "#";
+    
+    // textbox.update(delta_time, input);
+
+    return true;
 
 }
 
-void App::fixed_update() {
-    // physics and gamelogic goes here
-    fps_counter.text = std::to_string(int(frame_rate));
-    frame_rate=0;
+// physics, things that change game logic
+// things that need to be syncronized in online multiplayer
+bool App::fixed_update() {
+
+    // fps_counter.text = std::to_string(int(frame_rate));
+    // frame_rate=0;
+    
+    auto input = keyboard.poll();
+    if (input[ALLEGRO_KEY_UP]) {
+        y -= 5.0f;
+    } if (input[ALLEGRO_KEY_DOWN]) {
+        y += 5.0f;
+    } if (input[ALLEGRO_KEY_RIGHT]) {
+        x += 5.0f;
+    } if (input[ALLEGRO_KEY_LEFT]) {
+        x -= 5.0f;
+    }
+
+    return true;
+
 }
 
 void App::render() {
 
     al_clear_to_color(al_map_rgb(0, 0, 0));
-    textbox.render();
+    // textbox.render();
     fps_counter.render();
+    rectangle.render(x,y);
     al_flip_display();
 
 }

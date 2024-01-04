@@ -1,28 +1,33 @@
 #pragma once
 #include "alxx/core.hh"
 #include "textbox.hh"
+#include "rectangle.hh"
 #include "keyboard.hh"
 
 class App {
 public:
 
-    App(float, float);
+    App(float width, float height, double fixed_time_step);
     ~App();
     
     void run();
 
 private:
 
-    bool handle_event(const ALLEGRO_EVENT &);
+    bool handle_event(const ALLEGRO_EVENT &event);
     void render();
-    void update();
-    void fixed_update();
+    // variable time step
+    bool update(double delta_time);
+    // fixed time step
+    bool fixed_update();
 
+    const double fixed_time_step;
     alxx::Display display;
     alxx::EventQueue event_queue;
-    alxx::Timer fixed_update_timer;
-    double time_stamp, frame_rate;
+    // alxx::Timer fixed_update_timer;
     TextBox textbox, fps_counter;
+    Rectangle rectangle;
+    float x, y;
     Keyboard keyboard;
 
 };

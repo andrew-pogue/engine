@@ -19,8 +19,10 @@ modifiers modify keys / don't modify keys
 
 textbox horizontal and vertical scrolling when text goes offscreen
 
+try bazel
 
-
+does al_get_time() overflow?
+will the time eventually go beyond?
 
 
 

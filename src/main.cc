@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
     al_set_new_display_flags(ALLEGRO_RESIZABLE | ALLEGRO_WINDOWED);
 
     try {
-        App app(640.0f, 400.0f);
+        App app(640.0f, 400.0f, 1.0/60.0);
         app.run();
     }
 
