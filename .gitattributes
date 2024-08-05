@@ -1,1 +1,4 @@
-include/** linguist-vendored
+# exclude these directories from language statistics
+include/* linguist-vendored
+lib/* linguist-vendored
+assets/* linguist-vendored

@@ -1,6 +1,11 @@
+.vscode/
+.vs/
+.idea/
 bin/
 build/
-
-/.vs
-.idea/
+out/
 CMakeSettings.json
+
+*.bak
+*.tmp
+
