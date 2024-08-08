@@ -19,6 +19,7 @@ target_include_directories (game PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries (
     game
     allegro
+    allegro_main
     allegro_font
     allegro_primitives
 )

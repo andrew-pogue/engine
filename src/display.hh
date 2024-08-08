@@ -23,6 +23,10 @@ public:
         
     void handle_event(const ALLEGRO_EVENT &event) {
         switch (event.type) {
+        case ALLEGRO_EVENT_DISPLAY_RESIZE:
+            if (event.display.source == display) {
+                al_acknowledge_resize(display_);
+            } break;
         case ALLEGRO_EVENT_DISPLAY_LOST:
             if (event.display.source == display_) {
                 std::cerr << "[Display::handle_event] The display was lost??\n";
@@ -40,7 +44,6 @@ public:
     void set_title(const char *title) { al_set_window_title(display_, title_); }
 
     void resize(int width, int height) { al_resize_display(display_, width, height); }
-    void acknowledge_resize() { al_acknowledge_resize(display_); }
     
     bool operator==(const ALLEGRO_DISPLAY *other) const { return other == display_; }
     bool operator==(const Display &other) const { return other.display_ == display_; }
