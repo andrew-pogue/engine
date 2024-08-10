@@ -26,8 +26,7 @@ int main(int argc, char **argv) {
     must_init(al_init_font_addon(), "Failed to initialize font addon.");
     must_init(al_init_ttf_addon(), "Failed to initialize ttf addon.");
 
-    al_set_new_display_flags(ALLEGRO_RESIZABLE | ALLEGRO_WINDOWED);
-    Display display{640, 480, "wip"};
+    Display display(640, 480, ALLEGRO_RESIZABLE | ALLEGRO_WINDOWED, "wip");
     Keyboard keyboard(display.get());
     Mouse mouse(display.get());
     Camera camera({0,0,0}, display.get_width(), display.get_height());

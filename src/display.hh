@@ -8,13 +8,29 @@ private:
 
     ALLEGRO_DISPLAY *const display_;
 
+    // creates a display with the given values without replacing the global new-display values 
+    ALLEGRO_DISPLAY *create_display_with(int width, int height, int flags, const char *title) {
+        int default_flags = al_get_new_display_flags();
+        const char *default_title = al_get_new_window_title();
+        al_set_new_display_flags(flags);
+        al_set_new_window_title(title);
+        ALLEGRO_DISPLAY *display = al_create_display(width, height);
+        al_set_new_display_flags(default_flags);
+        al_set_new_window_title(default_title);
+        return display;
+    }
+
 public:
+
+    Display(int width, int height, int flags, const char *title=nullptr)
+        : display_(create_display_with(width, height, flags, title))
+    { assert(display_ && "failed to create display"); }
 
     Display(int width, int height, const char *title=nullptr)
         : display_(al_create_display(width, height))
     {
         assert(display_ && "failed to create display");
-        set_title(title);
+        if (title) set_title(title);
     }
 
     // "You should make sure no threads are currently targeting a
