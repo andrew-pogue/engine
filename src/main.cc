@@ -5,7 +5,7 @@
 
 #include "camera.hh"
 #include "display.hh"
-#include "event_queue.hh"
+#include "eventqueue.hh"
 #include "font.hh"
 #include "keyboard.hh"
 #include "mouse.hh"
