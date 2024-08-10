@@ -18,7 +18,7 @@ void must_init(bool test, const char *error_message) {
 
 int main(int argc, char **argv) {
     // must have argc and argv variables, required by allegro 
-    void(arc); void(argv); // prevent unused variable compiler warning
+    (void)argc; (void)argv; // prevent unused variable compiler warning
 
     must_init(al_init(), "Failed to initialize allegro.");
     must_init(al_install_keyboard(), "Failed to install keyboard driver.");
@@ -26,17 +26,18 @@ int main(int argc, char **argv) {
     must_init(al_init_font_addon(), "Failed to initialize font addon.");
     must_init(al_init_ttf_addon(), "Failed to initialize ttf addon.");
 
+    al_set_new_display_flags(ALLEGRO_RESIZABLE | ALLEGRO_WINDOWED);
+    Display display{640, 480, "wip"};
+    Keyboard keyboard(display.get());
+    Mouse mouse(display.get());
+    Camera camera({0,0,0}, display.get_width(), display.get_height());
     Font font{"assets/font/PressStart2P-Regular.ttf", 36};
-    Camera camera{{0,0,0}, display.width(), display.height()}
-    Keyboard keyboard;
-    Mouse mouse;
-    Display display{640, 480, ALLEGRO_RESIZABLE | ALLEGRO_WINDOWED};
     EventQueue event_queue{
         al_get_keyboard_event_source(),
         al_get_mouse_event_source(),
         display.get_event_source() };
     ALLEGRO_EVENT event;
-    bool play = true, update = false;
+    bool play = true, update = true, render = true;
 
     while (play) {
         // handle event
@@ -52,40 +53,33 @@ int main(int argc, char **argv) {
                 } break;
             case ALLEGRO_EVENT_DISPLAY_RESIZE:
                 if (event.display.source == display) {
-                    camera.width(display.width());
-                    camera.height(display.height());
-                } break;
-            case ALLEGRO_EVENT_DISPLAY_EXPOSED:
-                if (event.display.source == display) {
-                    exposed = true;
-                } break;
-            case ALLEGRO_EVENT_DISPLAY_SWITCH_OUT:
-                if (event.display.source == display) {
-                    al_clear_keyboard_state(display);
-                } break;
-            case ALLEGRO_EVENT_DISPLAY_SWITCH_IN:
-                if (event.display.source == display) {
+                    camera.viewport.width = display.get_width();
+                    camera.viewport.height = display.get_height();
                 } break;
             }
         }
 
         if (update) {
             // handle input
-            world.clear();
+            // world.clear();
             auto keyboard_input = keyboard.poll();
-            if (keyboard_input[ALLEGRO_KEY_UP]) player.coord.y++;
-            if (keyboard_input[ALLEGRO_KEY_DOWN]) player.coord.y--;
-            if (keyboard_input[ALLEGRO_KEY_RIGHT]) player.coord.x++;
-            if (keyboard_input[ALLEGRO_KEY_LEFT]) player.coord.x--;
+            if (keyboard_input[ALLEGRO_KEY_ESCAPE]) play = false;
+            // if (keyboard_input[ALLEGRO_KEY_UP]) player.coord.y++;
+            // if (keyboard_input[ALLEGRO_KEY_DOWN]) player.coord.y--;
+            // if (keyboard_input[ALLEGRO_KEY_RIGHT]) player.coord.x++;
+            // if (keyboard_input[ALLEGRO_KEY_LEFT]) player.coord.x--;
             
             // update
-            update = false;
+            // update = false;
         }
         
         // render
         if (render) {
             al_set_target_backbuffer(display.get());
             al_clear_to_color(al_map_rgb(0,0,0));
+            al_draw_text(font.get(), al_map_rgb(255,255,255),
+                    display.get_width() / 2.0f, display.get_height() / 2.0f,
+                    ALLEGRO_ALIGN_CENTRE, "HELLO WORLD"); 
             /*
             for (auto coord : camera.range()) {
                 coord.x = coord.x % world.width();
@@ -95,7 +89,7 @@ int main(int argc, char **argv) {
             }
             */
             al_flip_display();
-            render = false;
+            // render = false;
         }
     }
 

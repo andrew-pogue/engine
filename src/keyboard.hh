@@ -1,17 +1,14 @@
 #pragma once
 #include <allegro5/allegro.h>
+#include <array>
 #include <bitset>
 #include <cassert>
 
-class Keyboard {
-private:
-    
-    struct SymbolSet {
-        const std::array<char, ALLEGRO_KEY_MAX> lowercase, uppercase;
-    };
+using KeyCharMap = std::array<char, ALLEGRO_KEY_MAX>;
 
-    static const SymbolSet english_{
-        /* LOWERCASE */ { 0,
+namespace english {
+
+    const KeyCharMap lowercase{ 0,
         // ALLEGRO_KEY_A ... ALLEGRO_KEY_Z
         'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
         'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
@@ -33,9 +30,9 @@ private:
         // ALLEGRO_KEY_CONVERT ... ALLEGRO_KEY_NUMLOCK
         0, 0, 0, 0, ';', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // ALLEGRO_KEY_CAPSLOCK ... ALLEGRO_KEY_COMMAND
-        0, '=', '`', ';', 0 },
-            
-        /* UPPERCASE */ { 0,
+        0, '=', '`', ';', 0 };
+        
+    const KeyCharMap uppercase{ 0,
         // ALLEGRO_KEY_A ... ALLEGRO_KEY_Z
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
         'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
@@ -57,20 +54,20 @@ private:
         // ALLEGRO_KEY_CONVERT ... ALLEGRO_KEY_NUMLOCK
         0, 0, 0, 0, ':', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // ALLEGRO_KEY_CAPSLOCK ... ALLEGRO_KEY_COMMAND
-        0, '+', '~', ':', 0 }
-    };
+        0, '+', '~', ':', 0 };
 
-    const ALLEGRO_DISPLAY *const display_;
+} // namespace english
+
+class Keyboard {
+private:
+
     std::bitset<ALLEGRO_KEY_MAX> is_pressed_, has_changed_;
 
 public:
 
-    static char get_key_char(int keycode) const {
-        assert(keycode > 0 && keycode < ALLEGRO_KEY_MAX && "[Keyboard] invalid keycode passed");
-        return english_[keycode];
-    }
-    
-    static const char *get_key_name(int keycode) const {
+    const ALLEGRO_DISPLAY *const display; // non-owning
+
+    static const char *get_key_name(int keycode) {
         assert(keycode > 0 && keycode < ALLEGRO_KEY_MAX && "[Keyboard] invalid keycode passed");
         return al_keycode_to_name(keycode);
     }
@@ -78,25 +75,23 @@ public:
     using Poll = std::bitset<ALLEGRO_KEY_MAX>;
 
     Keyboard(ALLEGRO_DISPLAY *display)
-        : display_(display), is_pressed_(), has_changed_()
+        : display(display), is_pressed_(), has_changed_()
     {
-        assert(al_is_keyboard_installed(), "[Keyboard] keyboard driver is not installed");
+        assert(al_is_keyboard_installed() && "[Keyboard] keyboard driver is not installed");
         assert(display != nullptr && "[Mouse] display cannot be null");
     }
 
     void handle_event(const ALLEGRO_EVENT &event) {
         switch(event.type) {
         case ALLEGRO_EVENT_KEY_DOWN:
-            assert(keycode > 0 && keycode < ALLEGRO_KEY_MAX && "[Keyboard] invalid keycode passed");
-            if (event.keyboard.display == display_) {
+            if (event.keyboard.display == display) {
                 is_pressed_[event.keyboard.keycode] = true;
-                has_changed_[keycode] = true;
+                has_changed_[event.keyboard.keycode] = true;
             } break;
         case ALLEGRO_EVENT_KEY_UP:
-            assert(keycode > 0 && keycode < ALLEGRO_KEY_MAX && "[Keyboard] invalid keycode passed");
-            if (event.keyboard.display == display_) {
+            if (event.keyboard.display == display) {
                 is_pressed_[event.keyboard.keycode] = false;
-                has_changed_[keycode] = true;
+                has_changed_[event.keyboard.keycode] = true;
             } break;
         }
     }

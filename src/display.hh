@@ -24,7 +24,7 @@ public:
     void handle_event(const ALLEGRO_EVENT &event) {
         switch (event.type) {
         case ALLEGRO_EVENT_DISPLAY_RESIZE:
-            if (event.display.source == display) {
+            if (event.display.source == display_) {
                 al_acknowledge_resize(display_);
             } break;
         case ALLEGRO_EVENT_DISPLAY_LOST:
@@ -40,8 +40,8 @@ public:
 
     int get_height() const { return al_get_display_height(display_); }
     int get_width() const { return al_get_display_width(display_); }
-    auto get_backbuffer() { return al_get_backbuffer(display); }
-    void set_title(const char *title) { al_set_window_title(display_, title_); }
+    auto get_backbuffer() { return al_get_backbuffer(display_); }
+    void set_title(const char *title) { al_set_window_title(display_, title); }
 
     void resize(int width, int height) { al_resize_display(display_, width, height); }
     

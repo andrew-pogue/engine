@@ -19,13 +19,13 @@ public:
     
     struct Poll { int x, y, dz, dw; };
 
-    const ALLEGRO_DISPLAY *const display;
+    const ALLEGRO_DISPLAY *const display; // non-owning
     const int &x, &y;
 
     Mouse(ALLEGRO_DISPLAY *display)
         : x_(0), y_(0), dz_(0), dw_(0)
-        , buttons_(0u)
-        , display(display), enable(display)
+        , buttons_(0u), ignore_(!display)
+        , display(display)
         , x(x_), y(y_)
     { 
         assert(al_is_mouse_installed() && "[Mouse] mouse driver is not installed");
@@ -38,8 +38,8 @@ public:
             if (!ignore_ && event.mouse.display == display) {
                 x_ = event.mouse.x;
                 y_ = event.mouse.y;
-                z_ += event.mouse.dz;
-                w_ += event.mouse.dw;
+                dz_ += event.mouse.dz;
+                dw_ += event.mouse.dw;
             } break;
         case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
             if (!ignore_ && event.mouse.display == display) {
@@ -63,7 +63,7 @@ public:
     }
     
     Poll poll() {
-        Poll ret{ x_, y_, dz_, dw_; };
+        Poll ret{ x_, y_, dz_, dw_ };
         dz_ = 0; dw_ = 0;
         return ret; 
     }

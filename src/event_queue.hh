@@ -4,15 +4,16 @@
 
 // wrapper class for ALLEGRO_EVENT_QUEUE
 class EventQueue {
-
-    EventQueue(const EventQueue &) = delete;
-    void operator=(const EventQueue &) = delete;
-
 private:
 
     ALLEGRO_EVENT_QUEUE *const queue_;
 
 public:
+
+    EventQueue(const EventQueue &) = delete;
+    void operator=(const EventQueue &) = delete;
+    EventQueue(EventQueue &&) = delete;
+    void operator=(EventQueue &&) = delete;
 
     EventQueue()
         : queue_(al_create_event_queue())
@@ -25,24 +26,7 @@ public:
         add_event_sources(sources);
     }
 
-    EventQueue(EventQueue &&other)
-        : queue_(other.queue_)
-    { 
-        other.queue_ = nullptr;
-        assert(queue_ && "failed to create event queue");
-    }
-
     ~EventQueue() { al_destroy_event_queue(queue_); }
-
-    void operator=(EventQueue &&other) {
-        al_destroy_event_queue(queue_);
-        queue_ = other.queue_;
-        other.queue_ = nullptr;
-    }
-    void operator=(ALLEGRO_EVENT_QUEUE *queue) {
-        al_destroy_event_queue(queue_);
-        queue_ = queue;
-    }
 
     bool operator==(ALLEGRO_EVENT_QUEUE *queue) const { return queue == queue_; }
     bool operator!=(ALLEGRO_EVENT_QUEUE *queue) const { return queue != queue_; }
@@ -56,7 +40,7 @@ public:
     void flush() { al_flush_event_queue(queue_); }
 
     void add_event_source(ALLEGRO_EVENT_SOURCE *source) { al_register_event_source(queue_, source); }
-    void add_event_sources(std::initializer_list<ALLEGRO_EVENT_SOURCE *> sources) { for (src : sources) add_event_source(src); }
+    void add_event_sources(std::initializer_list<ALLEGRO_EVENT_SOURCE *> sources) { for (auto src : sources) add_event_source(src); }
     void remove_event_source(ALLEGRO_EVENT_SOURCE *source) { al_unregister_event_source(queue_, source); }
     bool has_event_source(ALLEGRO_EVENT_SOURCE *source) { return al_is_event_source_registered(queue_, source); }
 

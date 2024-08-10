@@ -14,10 +14,7 @@ public:
     Vector3f origin;
 
     struct Viewport {
-        float width, float height, float zoom;
-        Range3f range() const {
-            return { origin, { origin.x + width / zoom, origin.y + height / zoom, origin.z } };
-        }
+        float width, height, zoom;
     } viewport;
 
     // origin: in-game location of the top left corner of the viewport
@@ -27,9 +24,13 @@ public:
     {}
 
     // translates the given in-game coordinate to the corresponding position on the display
-    Vector3f translate(Vector3f coord) const { coord -= origin; coord *= zoom; return coord; }
+    Vector3f translate(Vector3f coord) const { coord -= origin; coord *= viewport.zoom; return coord; }
 
-    void center_on(Vector3f coord) { coord.x -= width / 2.0f; coord.y -= height / 2.0f; origin = coord; }
+    void center_on(Vector3f coord) { coord.x -= viewport.width / 2.0f; coord.y -= viewport.height / 2.0f; origin = coord; }
+
+    Range3f range() const {
+        return { origin, { origin.x + viewport.width / viewport.zoom, origin.y + viewport.height / viewport.zoom, origin.z } };
+    }
 
 };
 
