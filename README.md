@@ -1,4 +1,4 @@
-## Bulding 
+## Building 
 
 You need [allegro](https://liballeg.org/)
 
