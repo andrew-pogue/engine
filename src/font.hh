@@ -33,6 +33,7 @@ public:
     bool operator!=(const ALLEGRO_FONT *other) const { return !(*this == other); }
     bool operator!=(const Font &other) const { return !(*this == other); }
 
+    int get_line_height() const { return al_get_font_line_height(font_.get()); }
     ALLEGRO_FONT *get() { return font_.get(); }
 
 };
