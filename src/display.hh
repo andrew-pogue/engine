@@ -1,6 +1,7 @@
 #pragma once
 #include <allegro5/allegro.h>
 #include <cassert>
+#include <functional>
 
 // wrapper class for ALLEGRO_DISPLAY
 class Display {
@@ -37,21 +38,18 @@ public:
     // bitmap which is tied to this display before you destroy it."
     ~Display() { al_destroy_display(display_); }
         
-    void handle_event(const ALLEGRO_EVENT &event) {
+    bool handle_event(const ALLEGRO_EVENT &event) {
         switch (event.type) {
         case ALLEGRO_EVENT_DISPLAY_RESIZE:
-            if (event.display.source == display_) {
+            if (is_handled = event.display.source == display_) {
                 al_acknowledge_resize(display_);
             } break;
-        case ALLEGRO_EVENT_DISPLAY_LOST:
-            if (event.display.source == display_) {
-                std::cerr << "[Display::handle_event] The display was lost??\n";
-            } break;
-        case ALLEGRO_EVENT_DISPLAY_FOUND:
-            if (event.display.source == display_) {
-                std::cerr << "[Display::handle_event] The display was found.\n";
+        case ALLEGRO_EVENT_DISPLAY_SWITCH_OUT:
+            if (is_handled = event.display.source == display_) {
+                if (al_is_keyboard_installed()) al_clear_keyboard_state(display_);
             } break;
         }
+        return false;
     }
 
     int get_height() const { return al_get_display_height(display_); }

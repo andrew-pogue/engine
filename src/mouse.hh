@@ -32,34 +32,37 @@ public:
         assert(display != nullptr && "[Mouse] display cannot be null");
     }
 
-    void handle_event(const ALLEGRO_EVENT &event) {
+    bool handle_event(const ALLEGRO_EVENT &event) {
+        bool is_handled = true;
         switch (event.type) {
         case ALLEGRO_EVENT_MOUSE_AXES:
-            if (!ignore_ && event.mouse.display == display) {
+            if (!ignore_) {
                 x_ = event.mouse.x;
                 y_ = event.mouse.y;
                 dz_ += event.mouse.dz;
                 dw_ += event.mouse.dw;
             } break;
         case ALLEGRO_EVENT_MOUSE_BUTTON_DOWN:
-            if (!ignore_ && event.mouse.display == display) {
+            if (!ignore_) {
                 buttons_ |= event.mouse.button;
             } break;
         case ALLEGRO_EVENT_MOUSE_BUTTON_UP:
-            if (!ignore_ && event.mouse.display == display) {
+            if (!ignore_) {
                 buttons_ &= !event.mouse.button;
             } break;
         case ALLEGRO_EVENT_MOUSE_ENTER_DISPLAY:
-            if (event.mouse.display == display) {
-                ignore_ = true;
-                x_ = event.mouse.x;
-                y_ = event.mouse.y;
-            } break;
+            ignore_ = true;
+            x_ = event.mouse.x;
+            y_ = event.mouse.y;
+            break;
         case ALLEGRO_EVENT_MOUSE_LEAVE_DISPLAY:
-            if (event.mouse.display == display) {
-                ignore_ = false;
-            } break;
+            ignore_ = false;
+            break;
+        default:
+            is_handled = false;
+            break;
         }
+        return is_handled;
     }
     
     Poll poll() {
