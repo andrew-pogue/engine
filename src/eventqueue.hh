@@ -54,6 +54,8 @@ public:
     bool wait_timed(float seconds) { return al_wait_for_event_timed(queue_, NULL, seconds); }
     bool wait_timed(float seconds, ALLEGRO_EVENT &event) { return al_wait_for_event_timed(queue_, &event, seconds); }
 
-    ALLEGRO_EVENT_QUEUE *get() { return queue_; }
+    operator ALLEGRO_EVENT_QUEUE *() { return queue_; }
+    operator const ALLEGRO_EVENT_QUEUE *() const { return queue_; }
+    operator bool() const { return queue_; }
 
 };

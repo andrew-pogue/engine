@@ -3,12 +3,7 @@
 #include <cassert>
 
 // Wrapper for ALLEGRO_TIMER
-class Timer {
-private:
-
-    ALLEGRO_TIMER *const timer_;
-
-public:
+struct Timer {
 
     Timer(const Timer &) = delete; 
     void operator=(const Timer &) = delete; 
@@ -30,7 +25,12 @@ public:
     bool operator==(const ALLEGRO_TIMER *timer) const { return timer == timer_; }
     bool operator!=(const ALLEGRO_TIMER *timer) const { return timer != timer_; }
 
-    ALLEGRO_EVENT_SOURCE *get_event_source() const { return al_get_timer_event_source(timer_); }
-    ALLEGRO_TIMER *get() { return timer_; }
+    operator ALLEGRO_EVENT_SOURCE *() const { return al_get_timer_event_source(timer_); }
+    operator ALLEGRO_TIMER *() { return timer_; }
+    operator const ALLEGRO_TIMER *() const { return timer_; }
+
+private:
+
+    ALLEGRO_TIMER *const timer_;
 
 };
