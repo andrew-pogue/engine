@@ -4,13 +4,12 @@
 #include <allegro5/allegro_primitives.h>
 #include <iostream>
 
-#include "camera.hh"
 #include "display.hh"
 #include "eventqueue.hh"
 #include "font.hh"
-#include "keyboard.hh"
-#include "mouse.hh"
-#include "textbox.hh"
+#include "layout.hh"
+#include "string.hh"
+#include "text.hh"
 
 void must_init(bool test, const char *error_message) {
     if (test) return;
@@ -18,8 +17,24 @@ void must_init(bool test, const char *error_message) {
     exit(1);
 }
 
+/*
+Font load_font(std::string name, std::string type, int size, int flags) {
+    al_load_font(name + '-' + type, size, flags);
+}
+*/
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv; // prevent unused variable compiler warning
+    
+    std::string font_path = "assets/font/";
+    int font_size = 16;
+
+    if (argc > 1) font_path += argv[1];
+    else font_path += "PressStart2P-Regular.ttf";
+    if (argc > 2) font_size = std::stoi(argv[2]);
+
+    std::cout << "font path: " << font_path << '\n';
+    std::cout << "font size: " << font_size << '\n';
 
     must_init(al_init(), "Failed to initialize allegro.");
     must_init(al_install_keyboard(), "Failed to install keyboard driver.");
@@ -28,118 +43,69 @@ int main(int argc, char **argv) {
     must_init(al_init_ttf_addon(), "Failed to initialize ttf addon.");
     must_init(al_init_primitives_addon(), "Failed to initialize primitives addon.");
 
-    Display display(640, 480, ALLEGRO_RESIZABLE | ALLEGRO_WINDOWED, "wip");
-    Keyboard keyboard(display.get());
-    Mouse mouse(display.get());
-    Camera camera({0,0,0}, display.get_width(), display.get_height());
-    Font font_title{"assets/font/PressStart2P-Regular.ttf", 36};
-    Font font_body{"assets/font/PressStart2P-Regular.ttf", 14};
+    Display display(640, 480, "Hello World"); // create display before loading fonts
+    must_init(display, "Failed to create display.");
+
     EventQueue event_queue{
         al_get_keyboard_event_source(),
         al_get_mouse_event_source(),
-        display.get_event_source() };
+        display };
+    must_init(event_queue, "Failed to create event queue.");
 
-    TextBox title(display.get(), 
-        display.get_width() / 2.0f, 50.0f,
-        500.0f, 50.0f, "HELLO WORLD", font_title, al_map_rgb(0,0,0));
-    title.border.enabled = true;
-    title.border.thickness = 2.0f;
-    title.border.color = al_map_rgb(255,255,255);
-    title.border.padding = 4.0f;
-    title.fill.enabled = true;
-    title.fill.color = al_map_rgb(0,155,0);
-    title.align.vertical = Align::CENTER;
-    title.align.horizontal = Align::CENTER;
-    title.text.padding = 4.0f;
-    title.text.flags = ALLEGRO_ALIGN_CENTRE;
+    const char *example_text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam sit amet mauris quis tortor consequat maximus a sit amet est. Aliquam ullamcorper lorem eu nunc ultrices sollicitudin. Quisque est nunc, scelerisque pellentesque luctus at, ultricies in lorem. Nam malesuada commodo suscipit. Donec rhoncus, ipsum a condimentum gravida, mauris mauris facilisis magna, id interdum metus felis eget libero. Quisque condimentum risus ut elit consequat semper. Mauris ultrices gravida nibh, a sollicitudin lorem iaculis sed. Integer fringilla accumsan lorem, a rutrum orci blandit sit amet. Donec ultrices libero a ante accumsan, vel semper orci posuere. Curabitur eget urna imperdiet, vulputate neque dapibus, pellentesque nisl. Ut felis mi, ultrices non dui nec, rhoncus efficitur est.";
 
-    const char *txt = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam sit amet mauris quis tortor consequat maximus a sit amet est. Aliquam ullamcorper lorem eu nunc ultrices sollicitudin. Quisque est nunc, scelerisque pellentesque luctus at, ultricies in lorem. Nam malesuada commodo suscipit. Donec rhoncus, ipsum a condimentum gravida, mauris mauris facilisis magna, id interdum metus felis eget libero. Quisque condimentum risus ut elit consequat semper. Mauris ultrices gravida nibh, a sollicitudin lorem iaculis sed. Integer fringilla accumsan lorem, a rutrum orci blandit sit amet. Donec ultrices libero a ante accumsan, vel semper orci posuere. Curabitur eget urna imperdiet, vulputate neque dapibus, pellentesque nisl. Ut felis mi, ultrices non dui nec, rhoncus efficitur est.\n\nNulla cursus ac enim ut cursus. Vivamus venenatis eros vitae fringilla dapibus. Nunc commodo pharetra diam quis interdum. Sed imperdiet nisi vulputate mi malesuada eleifend. Vivamus iaculis sollicitudin dolor. Phasellus erat urna, elementum in feugiat vitae, feugiat viverra elit. Donec lacinia nulla ut lorem aliquet, ac ultrices quam ultricies. Proin euismod libero et efficitur rutrum. Donec vehicula, nisl in finibus maximus, libero justo consectetur leo, quis auctor quam ex in arcu. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Phasellus sit amet eros ultrices, vehicula erat vitae, viverra risus. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aenean vulputate consectetur malesuada.\n\nVestibulum ac justo viverra, pellentesque ipsum quis, sagittis nibh. Vivamus sed est velit. Cras faucibus leo non leo imperdiet dapibus. Aenean sit amet justo vel magna tempor dictum. Aliquam accumsan varius pellentesque. Etiam suscipit dui nec est consectetur auctor eget eget quam. Nullam tincidunt fringilla nulla, imperdiet porttitor dolor dignissim ut. Aenean rutrum sagittis viverra. Mauris nec tellus eu massa sodales pretium. Curabitur interdum sollicitudin erat at congue.\n\nAenean tristique elit neque. Vivamus feugiat tempus nisl, ut dictum lectus rhoncus at. Cras et tincidunt tellus, id feugiat tellus. Proin aliquam felis at sem tempor dictum. Aliquam rutrum ipsum sapien, in commodo diam lacinia vitae. Aliquam pellentesque sem ex, ac pulvinar nibh pulvinar non. Donec et odio eu arcu pretium euismod vitae ut erat. Donec ut nisi feugiat, convallis sapien id, convallis massa. Nam a odio ante. Integer scelerisque elit at magna iaculis pellentesque. Praesent eu lacinia nisl, a dictum dui. Sed id pellentesque lectus. Pellentesque sed efficitur lorem. Praesent rutrum ex et enim consectetur, a bibendum nisi auctor. Proin at metus porttitor, dictum ex ac, tincidunt odio. Sed quis justo leo.\n\nNunc scelerisque ex tortor, in elementum diam viverra sed. Nullam ut lorem posuere, dignissim sem at, fermentum augue. In aliquet, urna ac ullamcorper laoreet, diam tellus tincidunt sem, et euismod justo sem a est. Mauris suscipit varius vulputate. Etiam ullamcorper velit sit amet nisi varius, ac lobortis nulla lacinia. Ut ultrices pretium urna, ut luctus leo interdum quis. Sed molestie eleifend lorem vel luctus. In id mi non erat tristique fermentum vitae nec elit. Nullam sit amet diam at ante pulvinar lobortis. Vivamus suscipit feugiat ipsum, vel scelerisque dolor rhoncus in. Maecenas sed congue sapien. Quisque finibus ac magna sit amet hendrerit.\n\n";
+    Font font(font_path.data(), font_size);
+    must_init(font, "Failed to load font.");
 
-    TextBox body(display.get(), 
-        display.get_width() / 2.0f, display.get_height() / 2.0f + 25.0f,
-        title.width, display.get_height() - 150.0f,
-        txt, font_body, al_map_rgb(0,0,0));
-    body.border.enabled = true;
-    body.border.thickness = 2.0f;
-    body.border.color = al_map_rgb(0,155,0);
-    body.border.padding = 4.0f;
-    body.fill.enabled = true;
-    body.fill.color = al_map_rgb(0,155,0);
-    body.align.vertical = Align::CENTER;
-    body.align.horizontal = Align::CENTER;
-    body.text.padding = 4.0f;
-    body.text.flags = ALLEGRO_ALIGN_LEFT;
-    body.text.multiline = true;
-    body.editable = true;
+    auto window = GridLayout(display.area(), 6, 4, {20.f, 20.f});
+
+    Text title(window.area(1, 0, 4, 1), font, "snow", "Hello World!", ALIGN_CENTER);
+    Text body(window.area(1, 1, 4, 2), font, "snow", example_text, ALIGN_CENTER, 3);
+
+    title.per_char_cb = rainbow_text_effect;
+    body.per_char_cb = wavy_text_effect;
 
     ALLEGRO_EVENT event;
-    const double step_size = 1.0/60.0;
-    bool play = true, render = true;
-    double lag = 0.0, time_prior = al_get_time();
+    bool play = true;
+    double time_prior = al_get_time();
+    // double lag = 0.0, step_size = 1.0 / 60.0;
 
+    //// MAIN LOOP
     while (play) {
         double time_current = al_get_time(),
                time_elapsed = time_current - time_prior;
 
-        ///// HANDLE EVENT /////////////////////////////////////////////////
-        
+        /// HANDLE EVENTS
         while (event_queue.next(event)) {
             display.handle_event(event);
-            mouse.handle_event(event);
-            keyboard.handle_event(event);
-            title.handle_event(event);
-            body.handle_event(event);
             switch (event.type) {
+            case ALLEGRO_EVENT_KEY_DOWN:
+                play = event.keyboard.keycode != ALLEGRO_KEY_ESCAPE;
+                break;
             case ALLEGRO_EVENT_DISPLAY_CLOSE:
-                if (event.display.source == display) {
-                    play = false;
-                } break;
-            case ALLEGRO_EVENT_DISPLAY_RESIZE:
-                if (event.display.source == display) {
-                    title.x = event.display.width / 2.0f;
-                    body.x = event.display.width / 2.0f;
-                    body.y = event.display.height / 2.0f + 25.0f;
-                    body.height = event.display.height - 150.0f;
-                    camera.viewport.width = event.display.width;
-                    camera.viewport.height = event.display.height;
-                } break;
+                play = false;
+                break;
             }
         }
 
-        ///// HANDLE INPUT /////////////////////////////////////////////////
-        
-        auto keyboard_input = keyboard.poll();
-        if (keyboard_input[ALLEGRO_KEY_ESCAPE]) play = false;
-        
-        ///// FIXED UPDATE /////////////////////////////////////////////////
-        /// fixed time step for physics and game logic
-        
-        for (lag += time_elapsed; lag >= step_size; lag -= step_size) {
-        }
-        
-        ///// UPDATE //////////////////////////////////////////////////////
-        /// variable time step for gui and visual effects
+        /// UPDATE
+        // play = update(time_elapsed);
+        progress_animations();
 
-        ///// RENDER //////////////////////////////////////////////////////
-        
-        al_set_target_backbuffer(display.get());
+        /// FIXED UPDATE
+        // for (lag += dt; lag >= step_size; lag -= step_size) fixed_update();
+
+        /// RENDER
         al_clear_to_color(al_map_rgb(0,0,0));
+        title.area().draw_outline("snow", 2.0f);
+        body.area().draw_outline("snow", 2.0f);
         title.render();
         body.render();
-        /*
-        for (auto coord : camera.range()) {
-            coord.x = coord.x % world.width();
-            coord.y = coord.y % world.height();
-            for (auto id : world[coord])
-                render(camera.translate(coord), id);
-        }
-        */
         al_flip_display();
         
-        //////////////////////////////////////////////////////////////////
-
         time_prior = time_current;
     }
 
     return 0;
 }
+
