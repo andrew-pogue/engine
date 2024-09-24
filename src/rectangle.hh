@@ -1,7 +1,6 @@
 #pragma once
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
-#include "color.hh"
 
 struct Rectangle {
 
@@ -12,7 +11,7 @@ struct Rectangle {
             && j >= y && j <= y + height;
     }
 
-    void draw(Color color) const {
+    void draw(ALLEGRO_COLOR color) const {
         al_draw_filled_rectangle(
             x, y,
             x + width, y + height,
@@ -20,7 +19,7 @@ struct Rectangle {
         );
     }
 
-    void draw_rounded(Color color, float rx, float ry) const {
+    void draw_rounded(ALLEGRO_COLOR color, float rx, float ry) const {
         al_draw_filled_rounded_rectangle(
             x, y,
             x + width, y + height,
@@ -28,7 +27,7 @@ struct Rectangle {
         );
     }
 
-    void draw_outline(Color color, float thickness) const {
+    void draw_outline(ALLEGRO_COLOR color, float thickness) const {
         al_draw_rectangle(
             x, y,
             x + width, y + height,
@@ -36,7 +35,7 @@ struct Rectangle {
         );
     }
 
-    void draw_outline_rounded(Color color, float thickness, float rx, float ry) const {
+    void draw_outline_rounded(ALLEGRO_COLOR color, float thickness, float rx, float ry) const {
         al_draw_rounded_rectangle(
             x, y,
             x + width, y + height,

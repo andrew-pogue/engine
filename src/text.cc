@@ -35,7 +35,6 @@ namespace {
 
         ALLEGRO_USTR_INFO info;
         draw_text(x, y, data.font, data.color, al_ref_ustr(&info, str, 0, al_ustr_size(str)), data.align, data.per_char_cb, line_num); 
-
         return true;
     }
 
@@ -51,11 +50,11 @@ namespace {
 
 void progress_animations() { tick++; }
     
-void rainbow_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR color) {
+void rainbow_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR &color) {
     color = al_color_hsv(fmod(360.0f * sinf(x) + tick, 360.0f), 0.8f, 0.8f);
 }
 
-void wavy_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR color) {
+void wavy_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR &color) {
     const float amplitude=4.0f, speed=5.0f, frequency=5.0f;
     y += sinf(line_num * 0.75f + (x * frequency + tick * speed) * TO_RADIANS) * amplitude;
 }
@@ -108,12 +107,14 @@ void draw_multiline_text(
 ///////////////////////////////////////////////////////////////////////////////
 /// PUBLIC API
 
-Text::Text(Rectangle area, Font font, Color color, String str, int align, float spacing)
-    : Widget(area), font(font), color(color), str(str), align(align), spacing(spacing)
+Text::Text(Rectangle area, ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *str, int align, float spacing)
+    : Widget(area), font(font), color(color), str(al_ustr_new(str)), align(align), spacing(spacing)
 { }
 
+Text::~Text() { al_ustr_free(str); }
+
 void Text::resize_to_fit() {
-    height = get_line_count() * (font.line_height() + spacing) - spacing;
+    height = get_line_count() * (al_get_font_line_height(font) + spacing) - spacing;
 }
 
 void Text::render() const {

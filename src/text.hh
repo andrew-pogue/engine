@@ -2,11 +2,8 @@
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_font.h>
 #include <functional>
-#include "color.hh"
-#include "font.hh"
 #include "layout.hh"
 #include "math.hh"
-#include "string.hh"
 #include "widget.hh"
 
 using TextEffect = std::function<void(int, float &, float &, ALLEGRO_COLOR &)>;
@@ -16,9 +13,9 @@ using TextEffect = std::function<void(int, float &, float &, ALLEGRO_COLOR &)>;
 
 void progress_animations();
 
-void rainbow_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR color);
+void rainbow_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR &color);
 
-void wavy_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR color);
+void wavy_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR &color);
 
 void draw_text(float x, float y,
     const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *str,
@@ -32,15 +29,16 @@ void draw_multiline_text(
 
 struct Text : Widget {
 
-    Text(Rectangle area, Font font, Color color, String str, int align=ALIGN_LEFT, float spacing=1.0f);
+    Text(Rectangle area, ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *str, int align=ALIGN_LEFT, float spacing=1.0f);
+    ~Text();
     void render() const override;
 
     void resize_to_fit();
     int get_line_count() const;
 
-    Font font;
-    Color color;
-    String str;
+    ALLEGRO_FONT *font;
+    ALLEGRO_COLOR color;
+    ALLEGRO_USTR *str;
     float align;
     float spacing;
 
