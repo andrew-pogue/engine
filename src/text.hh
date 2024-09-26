@@ -3,46 +3,35 @@
 #include <allegro5/allegro_font.h>
 #include <functional>
 #include "layout.hh"
-#include "math.hh"
-#include "widget.hh"
+#include "rectangle.hh"
 
-using TextEffect = std::function<void(int, float &, float &, ALLEGRO_COLOR &)>;
+void draw_text_with_effect(float x, float y,
+    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *cstr,
+    std::function<void(int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
+    int align = ALIGN_LEFT);
 
-// float find_text_height(ALLEGRO_FONT *font, const ALLEGRO_USTR *&string);
-// float find_text_width(ALLEGRO_FONT *font, const ALLEGRO_USTR *&string);
+void draw_text_with_effect(float x, float y,
+    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
+    std::function<void(int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
+    int align = ALIGN_LEFT);
 
-void progress_animations();
+void draw_multiline_text_with_effect(Rectangle bounds,
+    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *cstr,
+    std::function<void(int ln, int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
+    int align = ALIGN_LEFT, float spacing = 1.0f);
 
-void rainbow_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR &color);
+void draw_multiline_text_with_effect(Rectangle bounds,
+    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
+    std::function<void(int ln, int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
+    int align = ALIGN_LEFT, float spacing = 1.0f);
 
-void wavy_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR &color);
+int get_text_line_count(float width, const ALLEGRO_FONT *font, const char *cstr);
+int get_text_line_count(float width, const ALLEGRO_FONT *font, const ALLEGRO_USTR *ustr);
 
-void draw_text(float x, float y,
-    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *str,
-    int align = ALIGN_LEFT, TextEffect per_char_cb = nullptr, int line_num = 0);
-
-void draw_multiline_text(
-    float x, float y, float max_width, float max_height,
-    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *str,
-    int align = ALIGN_LEFT, float spacing = 1.0f,
-    TextEffect per_line_cb = nullptr, TextEffect per_char_cb = nullptr);
-
-struct Text : Widget {
-
-    Text(Rectangle area, ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *str, int align=ALIGN_LEFT, float spacing=1.0f);
-    ~Text();
-    void render() const override;
-
-    void resize_to_fit();
-    int get_line_count() const;
-
-    ALLEGRO_FONT *font;
-    ALLEGRO_COLOR color;
-    ALLEGRO_USTR *str;
-    float align;
-    float spacing;
-
-    TextEffect per_line_cb, per_char_cb;
-
-};
-
+/*
+ * make no room for type erasure or generics
+ *
+ * effect can be applied and removed from text widget
+ * effects can be customized thus need data thus object
+ * effects can be combined
+ * */

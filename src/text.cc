@@ -1,6 +1,4 @@
-#include <allegro5/allegro_color.h>
 #include <cassert>
-#include <cmath>
 #include "text.hh"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8,122 +6,169 @@
 
 namespace {
 
-    unsigned tick = 0u;
+struct MultilineData {
+    const Rectangle bounds;
+    const ALLEGRO_FONT *font;
+    const ALLEGRO_COLOR color;
+    const int align;
+    const float spacing;
+    const std::function<void(int ln, int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect;
+    float advance = 0.f;
+};
 
-    struct MultilineData {
-        const ALLEGRO_FONT *font;
-        ALLEGRO_COLOR color;
-        float x, y, w, h; // bouding box paramters
-        int align;
-        float spacing;
-        TextEffect per_line_cb, per_char_cb;
-    };
+bool draw_multiline_text_helper(int ln, const ALLEGRO_USTR *str, void *extra) {
+    MultilineData &data = *(MultilineData *)extra;
 
-    bool draw_multiline_helper(int line_num, const ALLEGRO_USTR *str, void *line_help) {
-        const MultilineData &data = *(MultilineData *)line_help;
+    auto effect = std::bind_front(data.effect, ln);
 
-        float y = data.y + line_num * (al_get_font_line_height(data.font) + data.spacing);
-        if (y < data.y) return true;
-        if (y > data.y + data.h) return false;
+    float y = data.bounds.y + data.advance;
+    if (y < data.bounds.y) return true;
+    if (y > data.bounds.y + data.bounds.height) return false;
 
-        float x = data.x;
-        if (data.align == ALIGN_RIGHT)  x += data.w;
-        if (data.align == ALIGN_CENTER) x += data.w / 2.0f;
+    float x = data.bounds.x;
+    if (data.align == ALIGN_RIGHT) x += data.bounds.width;
+    else if (data.align == ALIGN_CENTER) x += data.bounds.width / 2.f;
+    
+    ALLEGRO_USTR_INFO info;
+    draw_text_with_effect(x, y,
+        data.font, data.color,
+        al_ref_ustr(&info, str, 0, al_ustr_size(str)),
+        effect, data.align);
+    
+    data.advance += al_get_font_line_height(data.font) + data.spacing;
+    return true;
+}
 
-        auto color = data.color;
-        if (data.per_line_cb) data.per_line_cb(line_num, x, y, color);
+bool get_ustr_line_count_helper(int ln, const ALLEGRO_USTR *str, void *count) {
+    *(int *)count = ln + 1;
+    return true;
+}
 
-        ALLEGRO_USTR_INFO info;
-        draw_text(x, y, data.font, data.color, al_ref_ustr(&info, str, 0, al_ustr_size(str)), data.align, data.per_char_cb, line_num); 
-        return true;
-    }
-
-    bool get_line_count_helper(int line_num, const ALLEGRO_USTR *str, void *count) {
-        *(int *)count = line_num + 1;
-        return true;
-    }
+bool get_cstr_line_count_helper(int ln, const char *str, int size, void *count) {
+    *(int *)count = ln + 1;
+    return true;
+}
 
 } // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 /// GLOBAL API
 
-void progress_animations() { tick++; }
-    
-void rainbow_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR &color) {
-    color = al_color_hsv(fmod(360.0f * sinf(x) + tick, 360.0f), 0.8f, 0.8f);
-}
-
-void wavy_text_effect(int line_num, float &x, float &y, ALLEGRO_COLOR &color) {
-    const float amplitude=4.0f, speed=5.0f, frequency=5.0f;
-    y += sinf(line_num * 0.75f + (x * frequency + tick * speed) * TO_RADIANS) * amplitude;
-}
-
-void draw_text(
-    float x, float y, const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *str,
-    int align, TextEffect per_char_cb, int line_num
+void draw_text_with_effect(
+    float x, float y,
+    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *cstr,
+    std::function<void(int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
+    int align
 ) {
-    assert(font); assert(str);
+    static auto draw_char =
+        [&effect, font](int ch, float x, float y, ALLEGRO_COLOR color) {
+            // changes made by effect are scoped to this lambda
+            if (effect) effect(ch, x, y, color);
+            al_draw_glyph(font, color, x, y, ch);
+        };
+
+    assert(font); assert(cstr);
+    if (!font || !cstr) return;
 
     const bool was_drawing_held = al_is_bitmap_drawing_held();
     al_hold_bitmap_drawing(true);
 
-    if (align == ALIGN_CENTER) x -= al_get_ustr_width(font, str) / 2.0f;
-    if (align == ALIGN_RIGHT) x -= al_get_ustr_width(font, str);
+    if (align == ALIGN_CENTER) x -= al_get_text_width(font, cstr) / 2.0f;
+    else if (align == ALIGN_RIGHT) x -= al_get_text_width(font, cstr);
 
-    int pos = al_ustr_offset(str, 0),
-        prev_ch = 0;
-    bool first = true;
+    char prev_ch = cstr[0];
+    draw_char(prev_ch, x, y, color);
 
-    do {
-        int ch = al_ustr_get(str, pos);
-        x += first ? 0.0f : al_get_glyph_advance(font, prev_ch, ch);
-        if (ch >= 0) {
-            float i = x, j = y; auto c = color;
-            if (per_char_cb) per_char_cb(line_num, i, j, c);
-            al_draw_glyph(font, c, i, j, ch);
-        }
-        prev_ch = ch; first = false;
-    } while (al_ustr_next(str, &pos));
+    for (size_t pos=1u; cstr[pos] != '\0'; pos++) {
+        x += al_get_glyph_advance(font, prev_ch, cstr[pos]);
+        draw_char(cstr[pos], x, y, color);
+        prev_ch = cstr[pos];
+    }
 
     al_hold_bitmap_drawing(was_drawing_held);
 }
 
-void draw_multiline_text(
-    float x, float y, float w, float h,
-    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *str,
-    int align, float spacing, TextEffect per_line_cb, TextEffect per_char_cb
+void draw_text_with_effect(
+    float x, float y,
+    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
+    std::function<void(int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
+    int align
 ) {
-    assert(font); assert(str);
+    static auto draw_char =
+        [&effect, font](int ch, float x, float y, ALLEGRO_COLOR color) {
+            // changes made by effect are scoped to this lambda
+            if (effect) effect(ch, x, y, color);
+            al_draw_glyph(font, color, x, y, ch);
+        };
+
+    assert(font); assert(ustr);
+    if (!font || !ustr) return;
+
     const bool was_drawing_held = al_is_bitmap_drawing_held();
     al_hold_bitmap_drawing(true);
 
-    auto data = MultilineData{font, color, x, y, w, h, align, spacing, per_line_cb, per_char_cb};
-    al_do_multiline_ustr(font, w, str, draw_multiline_helper, &data);
+    if (align == ALIGN_CENTER) x -= al_get_ustr_width(font, ustr) / 2.0f;
+    else if (align == ALIGN_RIGHT) x -= al_get_ustr_width(font, ustr);
+
+    int pos = al_ustr_offset(ustr, 0),
+        prev_ch = al_ustr_get(ustr, pos);
+    if (prev_ch >= 0) draw_char(prev_ch, x, y, color);
+
+    while (al_ustr_next(ustr, &pos)) {
+        int ch = al_ustr_get(ustr, pos);
+        if (ch < 0) continue;
+        x += al_get_glyph_advance(font, prev_ch, ch);
+        draw_char(ch, x, y, color);
+        prev_ch = ch;
+    }
 
     al_hold_bitmap_drawing(was_drawing_held);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-/// PUBLIC API
-
-Text::Text(Rectangle area, ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *str, int align, float spacing)
-    : Widget(area), font(font), color(color), str(al_ustr_new(str)), align(align), spacing(spacing)
-{ }
-
-Text::~Text() { al_ustr_free(str); }
-
-void Text::resize_to_fit() {
-    height = get_line_count() * (al_get_font_line_height(font) + spacing) - spacing;
+void draw_multiline_text_with_effect(
+    Rectangle bounds,
+    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *cstr,
+    std::function<void(int ln, int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
+    int align, float spacing
+) {
+    assert(font); assert(cstr);
+    if (!font || !cstr) return;
+    auto ustr = al_ustr_new(cstr);
+    draw_multiline_text_with_effect(bounds, font, color, ustr, effect, align, spacing);
+    al_ustr_free(ustr);
 }
 
-void Text::render() const {
-    draw_multiline_text(x, y, width, height, font, color, str, align, spacing, per_line_cb, per_char_cb);
+void draw_multiline_text_with_effect(
+    Rectangle bounds,
+    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
+    std::function<void(int ln, int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
+    int align, float spacing
+) {
+    assert(font); assert(ustr);
+    if (!font || !ustr) return;
+
+    int px, py, pw, ph;
+    al_get_clipping_rectangle(&px, &py, &pw, &ph);
+    al_set_clipping_rectangle(bounds.x, bounds.y, bounds.width, bounds.height);
+    const bool was_drawing_held = al_is_bitmap_drawing_held();
+    al_hold_bitmap_drawing(true);
+
+    auto data = MultilineData{bounds, font, color, align, spacing, effect};
+    al_do_multiline_ustr(font, bounds.width, ustr, draw_multiline_text_helper, &data);
+
+    al_set_clipping_rectangle(px, py, pw, ph);
+    al_hold_bitmap_drawing(was_drawing_held);
 }
 
-int Text::get_line_count() const {
+int get_text_line_count(float width, const ALLEGRO_FONT *font, const char *cstr) {
     int count = 0;
-    al_do_multiline_ustr(font, width, str, get_line_count_helper, &count);
+    al_do_multiline_text(font, width, cstr, get_cstr_line_count_helper, &count);
+    return count;
+}
+
+int get_text_line_count(float width, const ALLEGRO_FONT *font, const ALLEGRO_USTR *ustr) {
+    int count = 0;
+    al_do_multiline_ustr(font, width, ustr, get_ustr_line_count_helper, &count);
     return count;
 }
 
