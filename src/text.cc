@@ -20,29 +20,7 @@ int get_allegro_flags(int align) {
     return flags;
 }
 
-void draw_cstr_with_effect(
-    float x, float y,
-    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *cstr, int size,
-    TextEffect effect, int align
-) {
-    static auto draw_char =
-        [&effect, font](int ch, float x, float y, ALLEGRO_COLOR color) {
-            // changes made by effect are scoped to this lambda
-            if (effect) effect(ch, x, y, color);
-            al_draw_glyph(font, color, x, y, ch);
-        };
-
-    char prev_ch = cstr[0];
-    draw_char(prev_ch, x, y, color);
-
-    for (int i=1; i < size; i++) {
-        x += al_get_glyph_advance(font, prev_ch, cstr[i]);
-        draw_char(cstr[i], x, y, color);
-        prev_ch = cstr[i];
-    }
-}
-
-void draw_ustr_with_effect(
+void draw_text_with_effect(
     float x, float y,
     const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
     TextEffect effect, int align
@@ -67,16 +45,6 @@ void draw_ustr_with_effect(
     }
 }
 
-int get_substring_width(const ALLEGRO_FONT *font, const char *cstr, int size) {
-    int width = 0;
-    char prev_ch = cstr[0];
-    for (int i=1; i < size; i++) {
-        width += al_get_glyph_advance(font, prev_ch, cstr[i]);
-        prev_ch = cstr[i];
-    }
-    return width;
-}
-
 struct MultilineData {
     float x, y, height;
     const ALLEGRO_FONT *font;
@@ -87,27 +55,7 @@ struct MultilineData {
     float advance = 0.f;
 };
 
-bool draw_multiline_cstr_helper(int ln, const char *cstr, int size, void *extra) {
-    MultilineData &data = *(MultilineData *)extra;
-
-    float y = data.y + data.advance;
-    data.advance += al_get_font_line_height(data.font) + data.spacing;
-    if (y < data.y) return true;
-    if (y > data.y + data.height) return false;
-
-    float x = data.x;
-    if (data.align == ALIGN_RIGHT) x -= get_substring_width(data.font, cstr, size);
-    else if (data.align == ALIGN_CENTER) x -= get_substring_width(data.font, cstr, size) / 2.f;
-
-    ALLEGRO_USTR_INFO info;
-    draw_cstr_with_effect(x, y,
-        data.font, data.color,
-        cstr, size,
-        data.effect, data.align);
-    return true;
-}
-
-bool draw_multiline_ustr_helper(int ln, const ALLEGRO_USTR *ustr, void *extra) {
+bool draw_fancy_text_helper(int ln, const ALLEGRO_USTR *ustr, void *extra) {
     MultilineData &data = *(MultilineData *)extra;
 
     float y = data.y + data.advance;
@@ -120,7 +68,7 @@ bool draw_multiline_ustr_helper(int ln, const ALLEGRO_USTR *ustr, void *extra) {
     else if (data.align == ALIGN_CENTER) x -= al_get_ustr_width(data.font, ustr) / 2.f;
     
     ALLEGRO_USTR_INFO info;
-    draw_ustr_with_effect(x, y,
+    draw_text_with_effect(x, y,
         data.font, data.color,
         al_ref_ustr(&info, ustr, 0, al_ustr_size(ustr)),
         data.effect, data.align);
@@ -150,26 +98,8 @@ void draw_text(
     assert(font); assert(cstr);
     if (!font || !cstr) return;
 
-    const bool was_drawing_held = al_is_bitmap_drawing_held();
-    al_hold_bitmap_drawing(true);
-
-    float x = bounds.x, y = bounds.y;
-    if (xalign == ALIGN_RIGHT) x += bounds.width;
-    else if (xalign == ALIGN_CENTER) x += bounds.width / 2.f;
-    if (yalign == ALIGN_BOTTOM)
-        y += bounds.height - get_text_height(bounds.width, spacing, font, cstr);
-    else if (yalign == ALIGN_CENTER)
-        y += (bounds.height - get_text_height(bounds.width, spacing, font, cstr)) / 2.f;
-
-    if (effect) {
-        auto data = MultilineData{x, y, bounds.height, font, color, xalign, spacing, effect};
-        al_do_multiline_text(font, bounds.width, cstr, draw_multiline_cstr_helper, &data);
-    } else {
-        al_draw_multiline_text(font, color, x, y, bounds.width,
-            al_get_font_line_height(font) + spacing, get_allegro_flags(xalign), cstr);
-    }
-
-    al_hold_bitmap_drawing(was_drawing_held);
+    ALLEGRO_USTR_INFO info;
+    draw_text(bounds, xalign, yalign, font, color, al_ref_cstr(&info, cstr), spacing, effect);
 }
 
 void draw_text(
@@ -184,8 +114,10 @@ void draw_text(
     al_hold_bitmap_drawing(true);
 
     float x = bounds.x, y = bounds.y;
-    if (xalign == ALIGN_RIGHT) x += bounds.width;
-    else if (xalign == ALIGN_CENTER) x += bounds.width / 2.f;
+    if (xalign == ALIGN_RIGHT)
+        x += bounds.width;
+    else if (xalign == ALIGN_CENTER)
+        x += bounds.width / 2.f;
     if (yalign == ALIGN_BOTTOM)
         y += bounds.height - get_text_height(bounds.width, spacing, font, ustr);
     else if (yalign == ALIGN_CENTER)
@@ -193,7 +125,7 @@ void draw_text(
 
     if (effect) {
         auto data = MultilineData{x, y, bounds.height, font, color, xalign, spacing, effect};
-        al_do_multiline_ustr(font, bounds.width, ustr, draw_multiline_ustr_helper, &data);
+        al_do_multiline_ustr(font, bounds.width, ustr, draw_fancy_text_helper, &data);
     } else {
         al_draw_multiline_ustr(font, color, x, y, bounds.width,
             al_get_font_line_height(font) + spacing, get_allegro_flags(xalign), ustr);
