@@ -81,19 +81,22 @@ public:
         assert(display != nullptr && "[Mouse] display cannot be null");
     }
 
-    void handle_event(const ALLEGRO_EVENT &event) {
+    bool handle_event(const ALLEGRO_EVENT &event) {
+        bool is_handled = true;
         switch(event.type) {
         case ALLEGRO_EVENT_KEY_DOWN:
-            if (event.keyboard.display == display) {
-                is_pressed_[event.keyboard.keycode] = true;
-                has_changed_[event.keyboard.keycode] = true;
-            } break;
+            is_pressed_[event.keyboard.keycode] = true;
+            has_changed_[event.keyboard.keycode] = true;
+            break;
         case ALLEGRO_EVENT_KEY_UP:
-            if (event.keyboard.display == display) {
-                is_pressed_[event.keyboard.keycode] = false;
-                has_changed_[event.keyboard.keycode] = true;
-            } break;
+            is_pressed_[event.keyboard.keycode] = false;
+            has_changed_[event.keyboard.keycode] = true;
+            break;
+        default:
+            is_handled = false;
+            break;
         }
+        return is_handled;
     }
     
     Poll poll() {
