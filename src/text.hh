@@ -5,33 +5,37 @@
 #include "layout.hh"
 #include "rectangle.hh"
 
-void draw_text_with_effect(float x, float y,
+using TextEffect = std::function<void(int &ch, float &x, float &y, ALLEGRO_COLOR &color)>;
+
+void draw_text(Rectangle bounds, int xalign, int yalign,
     const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *cstr,
-    std::function<void(int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
-    int align = ALIGN_LEFT);
+    float spacing, TextEffect effect=nullptr);
 
-void draw_text_with_effect(float x, float y,
+void draw_text(Rectangle bounds, int xalign, int yalign,
     const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
-    std::function<void(int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
-    int align = ALIGN_LEFT);
+    float spacing, TextEffect effect=nullptr);
 
-void draw_multiline_text_with_effect(Rectangle bounds,
-    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *cstr,
-    std::function<void(int ln, int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
-    int align = ALIGN_LEFT, float spacing = 1.0f);
-
-void draw_multiline_text_with_effect(Rectangle bounds,
-    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
-    std::function<void(int ln, int &ch, float &x, float &y, ALLEGRO_COLOR &color)> effect,
-    int align = ALIGN_LEFT, float spacing = 1.0f);
+float get_text_height(float width, float spacing, const ALLEGRO_FONT *font, const char *cstr);
+float get_text_height(float width, float spacing, const ALLEGRO_FONT *font, const ALLEGRO_USTR *ustr);
 
 int get_text_line_count(float width, const ALLEGRO_FONT *font, const char *cstr);
 int get_text_line_count(float width, const ALLEGRO_FONT *font, const ALLEGRO_USTR *ustr);
 
-/*
- * make no room for type erasure or generics
- *
- * effect can be applied and removed from text widget
- * effects can be customized thus need data thus object
- * effects can be combined
- * */
+struct RainbowTextEffect {
+
+    float shift;
+
+    RainbowTextEffect(float shift=0.f);
+    void operator()(int &ch, float &x, float &y, ALLEGRO_COLOR &color);
+
+};
+
+struct WavyTextEffect {
+
+    float wave_length, wave_height, wave_shift;
+
+    WavyTextEffect(float length, float height, float shift=0.f);
+    void operator()(int &ch, float &x, float &y, ALLEGRO_COLOR &color);
+
+};
+
