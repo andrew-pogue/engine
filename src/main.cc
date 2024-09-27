@@ -19,15 +19,21 @@ void must_init(bool test, const char *error_message) {
 void draw_ui(const ALLEGRO_FONT *font, double time) {
     static const char *example_text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam sit amet mauris quis tortor consequat maximus a sit amet est. Aliquam ullamcorper lorem eu nunc ultrices sollicitudin. Quisque est nunc, scelerisque pellentesque luctus at, ultricies in lorem. Nam malesuada commodo suscipit. Donec rhoncus, ipsum a condimentum gravida, mauris mauris facilisis magna, id interdum metus felis eget libero. Quisque condimentum risus ut elit consequat semper. Mauris ultrices gravida nibh, a sollicitudin lorem iaculis sed. Integer fringilla accumsan lorem, a rutrum orci blandit sit amet. Donec ultrices libero a ante accumsan, vel semper orci posuere. Curabitur eget urna imperdiet, vulputate neque dapibus, pellentesque nisl. Ut felis mi, ultrices non dui nec, rhoncus efficitur est.";
 
+    static const auto effect = [&time](int &ch, float &x, float &y, ALLEGRO_COLOR &color) {
+        WavyTextEffect(100.f,8.f,time*0.75f)(ch, x, y, color);
+        RainbowTextEffect(float(time))(ch, x, y, color);
+    };
+
     GridLayout window({0.f, 0.f, float(DISPLAY_WIDTH), float(DISPLAY_HEIGHT)}, 6, 4, {20.f, 20.f});
-    draw_text(window.area(1, 0, 4, 1), ALIGN_CENTER, ALIGN_CENTER, font, al_color_name("snow"),
-        "HELLO WORLD!", 1.f);
-    draw_text(window.area(1, 1, 4, 2), ALIGN_CENTER, ALIGN_TOP, font, al_color_name("snow"),
-        example_text, 2.f, WavyTextEffect(88.f,10.f,time/2.f));
+    auto title = window.area(1, 0, 4, 1), body = window.area(1, 1, 4, 2);
+    title.draw_outline(al_color_name("grey"), 2.f);
+    body.draw_outline(al_color_name("grey"), 2.f);
+    draw_text(title, ALIGN_CENTER, ALIGN_CENTER, font, al_color_name("snow"), "HELLO WORLD!", 1.f, effect);
+    draw_text(body, ALIGN_RIGHT, ALIGN_TOP, font, al_color_name("snow"), example_text, 2.f);
 }
 
 ALLEGRO_FONT *load_font(int argc, char **argv) {
-    const char *name = (argc > 1) ? argv[1] : "Inconsolata";
+    const char *name = (argc > 1) ? argv[1] : "PressStart2P";
     const char *style = (argc > 2) ? argv[2] : "Regular";
     int size = (argc > 3) ? std::stoi(argv[3]) : 16;
     std::cout << "font: " << name << ' ' << style << ' ' << size << '\n';

@@ -1,7 +1,6 @@
 #include <allegro5/allegro_color.h>
 #include <cassert>
 #include <cmath>
-#include <iostream>
 #include "math.hh"
 #include "text.hh"
 
@@ -20,7 +19,7 @@ int get_allegro_flags(int align) {
     return flags;
 }
 
-void draw_text_with_effect(
+void draw_ustr_with_effect(
     float x, float y,
     const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
     TextEffect effect, int align
@@ -68,10 +67,11 @@ bool draw_fancy_text_helper(int ln, const ALLEGRO_USTR *ustr, void *extra) {
     else if (data.align == ALIGN_CENTER) x -= al_get_ustr_width(data.font, ustr) / 2.f;
     
     ALLEGRO_USTR_INFO info;
-    draw_text_with_effect(x, y,
-        data.font, data.color,
-        al_ref_ustr(&info, ustr, 0, al_ustr_size(ustr)),
-        data.effect, data.align);
+    if (data.effect) 
+        draw_ustr_with_effect(x, y, data.font, data.color,
+            al_ref_ustr(&info, ustr, 0, al_ustr_size(ustr)),
+            data.effect, data.align);
+    else al_draw_ustr(data.font, data.color, x, y, 0, al_ref_ustr(&info, ustr, 0, al_ustr_size(ustr)));
     return true;
 }
 
@@ -123,13 +123,8 @@ void draw_text(
     else if (yalign == ALIGN_CENTER)
         y += (bounds.height - get_text_height(bounds.width, spacing, font, ustr)) / 2.f;
 
-    if (effect) {
-        auto data = MultilineData{x, y, bounds.height, font, color, xalign, spacing, effect};
-        al_do_multiline_ustr(font, bounds.width, ustr, draw_fancy_text_helper, &data);
-    } else {
-        al_draw_multiline_ustr(font, color, x, y, bounds.width,
-            al_get_font_line_height(font) + spacing, get_allegro_flags(xalign), ustr);
-    }
+    auto data = MultilineData{x, y, bounds.height, font, color, xalign, spacing, effect};
+    al_do_multiline_ustr(font, bounds.width, ustr, draw_fancy_text_helper, &data);
 
     al_hold_bitmap_drawing(was_drawing_held);
 }
