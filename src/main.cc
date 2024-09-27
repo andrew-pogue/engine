@@ -28,8 +28,8 @@ void draw_ui(const ALLEGRO_FONT *font, double time) {
     auto title = window.area(1, 0, 4, 1), body = window.area(1, 1, 4, 2);
     title.draw_outline(al_color_name("grey"), 2.f);
     body.draw_outline(al_color_name("grey"), 2.f);
-    draw_text(title, ALIGN_CENTER, ALIGN_CENTER, font, al_color_name("snow"), "HELLO WORLD!", 1.f, effect);
-    draw_text(body, ALIGN_RIGHT, ALIGN_TOP, font, al_color_name("snow"), example_text, 2.f);
+    draw_text(title, AlignX::CENTER, AlignY::CENTER, font, al_color_name("snow"), "HELLO WORLD!", 1.f, effect);
+    draw_text(body, AlignX::RIGHT, AlignY::TOP, font, al_color_name("snow"), example_text, 2.f);
 }
 
 ALLEGRO_FONT *load_font(int argc, char **argv) {

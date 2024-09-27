@@ -9,20 +9,10 @@
 
 namespace {
 
-int get_allegro_flags(int align) {
-    int flags = 0;
-    switch (align) {
-    case ALIGN_LEFT:    flags |= ALLEGRO_ALIGN_LEFT; break;
-    case ALIGN_CENTER:  flags |= ALLEGRO_ALIGN_CENTRE; break;
-    case ALIGN_RIGHT:   flags |= ALLEGRO_ALIGN_RIGHT; break;
-    }
-    return flags;
-}
-
 void draw_ustr_with_effect(
     float x, float y,
     const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
-    TextEffect effect, int align
+    TextEffect effect
 ) {
     static auto draw_char =
         [&effect, font](int ch, float x, float y, ALLEGRO_COLOR color) {
@@ -48,7 +38,7 @@ struct MultilineData {
     float x, y, height;
     const ALLEGRO_FONT *font;
     const ALLEGRO_COLOR color;
-    const int align;
+    const AlignX align;
     const float spacing;
     const TextEffect effect;
     float advance = 0.f;
@@ -62,15 +52,15 @@ bool draw_fancy_text_helper(int ln, const ALLEGRO_USTR *ustr, void *extra) {
     if (y < data.y) return true;
     if (y > data.y + data.height) return false;
 
-    float x = data.x;
-    if (data.align == ALIGN_RIGHT) x -= al_get_ustr_width(data.font, ustr);
-    else if (data.align == ALIGN_CENTER) x -= al_get_ustr_width(data.font, ustr) / 2.f;
+    float width = al_get_ustr_width(data.font, ustr);
+    float x = data.x
+        - float(data.align == AlignX::RIGHT) * width
+        - float(data.align == AlignX::CENTER) * width / 2.f;
     
     ALLEGRO_USTR_INFO info;
     if (data.effect) 
         draw_ustr_with_effect(x, y, data.font, data.color,
-            al_ref_ustr(&info, ustr, 0, al_ustr_size(ustr)),
-            data.effect, data.align);
+            al_ref_ustr(&info, ustr, 0, al_ustr_size(ustr)), data.effect);
     else al_draw_ustr(data.font, data.color, x, y, 0, al_ref_ustr(&info, ustr, 0, al_ustr_size(ustr)));
     return true;
 }
@@ -91,7 +81,7 @@ bool get_cstr_line_count_helper(int ln, const char *str, int size, void *count) 
 /// GLOBAL API
 
 void draw_text(
-    Rectangle bounds, int xalign, int yalign,
+    Rectangle bounds, AlignX align_x, AlignY align_y,
     const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *cstr,
     float spacing, TextEffect effect
 ) {
@@ -99,11 +89,11 @@ void draw_text(
     if (!font || !cstr) return;
 
     ALLEGRO_USTR_INFO info;
-    draw_text(bounds, xalign, yalign, font, color, al_ref_cstr(&info, cstr), spacing, effect);
+    draw_text(bounds, align_x, align_y, font, color, al_ref_cstr(&info, cstr), spacing, effect);
 }
 
 void draw_text(
-    Rectangle bounds, int xalign, int yalign,
+    Rectangle bounds, AlignX align_x, AlignY align_y,
     const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
     float spacing, TextEffect effect
 ) {
@@ -113,17 +103,15 @@ void draw_text(
     const bool was_drawing_held = al_is_bitmap_drawing_held();
     al_hold_bitmap_drawing(true);
 
-    float x = bounds.x, y = bounds.y;
-    if (xalign == ALIGN_RIGHT)
-        x += bounds.width;
-    else if (xalign == ALIGN_CENTER)
-        x += bounds.width / 2.f;
-    if (yalign == ALIGN_BOTTOM)
-        y += bounds.height - get_text_height(bounds.width, spacing, font, ustr);
-    else if (yalign == ALIGN_CENTER)
-        y += (bounds.height - get_text_height(bounds.width, spacing, font, ustr)) / 2.f;
+    float height = get_text_height(bounds.width, spacing, font, ustr);
+    float x = bounds.x
+        + float(align_x == AlignX::RIGHT) * bounds.width
+        + float(align_x == AlignX::CENTER) * bounds.width / 2.f;
+    float y = bounds.y
+        + float(align_y == AlignY::BOTTOM) * (bounds.height - height)
+        + float(align_y == AlignY::CENTER) * (bounds.height - height) / 2.f;
 
-    auto data = MultilineData{x, y, bounds.height, font, color, xalign, spacing, effect};
+    auto data = MultilineData{x, y, bounds.height, font, color, align_x, spacing, effect};
     al_do_multiline_ustr(font, bounds.width, ustr, draw_fancy_text_helper, &data);
 
     al_hold_bitmap_drawing(was_drawing_held);
