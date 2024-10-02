@@ -60,14 +60,8 @@ void Layout::align(AlignY value, std::derived_from<Rectangle> auto &...items) co
     }
 }
 
-void Layout::align(AlignX horizontal, AlignY vertical, std::derived_from<Rectangle> auto &...items) const {
-    align_horizontal(horizontal, items...);
-    align_vertical(vertical, items...);
-}
-
-void Layout::align(AlignY vertical, AlignX horizontal, std::derived_from<Rectangle> auto &...items) const {
-    align_horizontal(horizontal, items...);
-    align_vertical(vertical, items...);
+void Layout::align(Align value, std::derived_from<Rectangle> auto &...items) const {
+    align(value.x, items...); align(value.y, items...);
 }
 
 void Layout::anchor(char value, std::derived_from<Rectangle> auto &...items) const {

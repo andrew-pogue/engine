@@ -14,6 +14,11 @@ enum class Anchor {
 enum class AlignX { LEFT, RIGHT, CENTER };
 enum class AlignY { TOP, BOTTOM, CENTER };
 
+struct Align {
+    AlignX x : 2 = AlignX::LEFT;
+    AlignY y : 2 = AlignY::TOP;
+};
+
 struct GridLayout;
 
 struct Layout : Rectangle {
@@ -26,8 +31,7 @@ struct Layout : Rectangle {
     float column(float spacing, std::derived_from<Rectangle> auto &...items) const;
     void align(AlignX value, std::derived_from<Rectangle> auto &...items) const;
     void align(AlignY value, std::derived_from<Rectangle> auto &...items) const;
-    void align(AlignX horizontal, AlignY vertical, std::derived_from<Rectangle> auto &...items) const;
-    void align(AlignY vertical, AlignX horizontal, std::derived_from<Rectangle> auto &...items) const;
+    void align(Align value, std::derived_from<Rectangle> auto &...items) const;
     void anchor(char value, std::derived_from<Rectangle> auto &...items) const;
         
 }; // struct Layout

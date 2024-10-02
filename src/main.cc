@@ -7,6 +7,7 @@
 
 #include "layout.hh"
 #include "text.hh"
+#include "textfield.hh"
 
 const int DISPLAY_WIDTH = 640, DISPLAY_HEIGHT = 480;
 
@@ -14,22 +15,6 @@ void must_init(bool test, const char *error_message) {
     if (test) return;
     std::cerr << error_message << '\n';
     exit(1);
-}
-
-void draw_ui(const ALLEGRO_FONT *font, double time) {
-    static const char *example_text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam sit amet mauris quis tortor consequat maximus a sit amet est. Aliquam ullamcorper lorem eu nunc ultrices sollicitudin. Quisque est nunc, scelerisque pellentesque luctus at, ultricies in lorem. Nam malesuada commodo suscipit. Donec rhoncus, ipsum a condimentum gravida, mauris mauris facilisis magna, id interdum metus felis eget libero. Quisque condimentum risus ut elit consequat semper. Mauris ultrices gravida nibh, a sollicitudin lorem iaculis sed. Integer fringilla accumsan lorem, a rutrum orci blandit sit amet. Donec ultrices libero a ante accumsan, vel semper orci posuere. Curabitur eget urna imperdiet, vulputate neque dapibus, pellentesque nisl. Ut felis mi, ultrices non dui nec, rhoncus efficitur est.";
-
-    static const auto effect = [&time](int &ch, float &x, float &y, ALLEGRO_COLOR &color) {
-        WavyTextEffect(100.f,8.f,time*0.75f)(ch, x, y, color);
-        RainbowTextEffect(float(time))(ch, x, y, color);
-    };
-
-    GridLayout window({0.f, 0.f, float(DISPLAY_WIDTH), float(DISPLAY_HEIGHT)}, 6, 4, {20.f, 20.f});
-    auto title = window.area(1, 0, 4, 1), body = window.area(1, 1, 4, 2);
-    title.draw_outline(al_color_name("grey"), 2.f);
-    body.draw_outline(al_color_name("grey"), 2.f);
-    draw_text(title, AlignX::CENTER, AlignY::CENTER, font, al_color_name("snow"), "HELLO WORLD!", 1.f, effect);
-    draw_text(body, AlignX::RIGHT, AlignY::TOP, font, al_color_name("snow"), example_text, 2.f);
 }
 
 ALLEGRO_FONT *load_font(int argc, char **argv) {
@@ -65,22 +50,28 @@ int main(int argc, char **argv) {
     al_register_event_source(event_queue, al_get_keyboard_event_source());
     al_register_event_source(event_queue, al_get_mouse_event_source());
 
+    const char *example_text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam sit amet mauris quis tortor consequat maximus a sit amet est. Aliquam ullamcorper lorem eu nunc ultrices sollicitudin. Quisque est nunc, scelerisque pellentesque luctus at, ultricies in lorem. Nam malesuada commodo suscipit. Donec rhoncus, ipsum a condimentum gravida, mauris mauris facilisis magna, id interdum metus felis eget libero. Quisque condimentum risus ut elit consequat semper. Mauris ultrices gravida nibh, a sollicitudin lorem iaculis sed. Integer fringilla accumsan lorem, a rutrum orci blandit sit amet. Donec ultrices libero a ante accumsan, vel semper orci posuere. Curabitur eget urna imperdiet, vulputate neque dapibus, pellentesque nisl. Ut felis mi, ultrices non dui nec, rhoncus efficitur est.";
+
     // NOTE: create a display before loading a font or allegro will be bugged
     ALLEGRO_FONT *font = load_font(argc, argv);
     must_init(font, "Failed to load font.");
+
+    GridLayout window({0.f, 0.f, float(DISPLAY_WIDTH), float(DISPLAY_HEIGHT)}, 6, 4, {20.f, 20.f});
+    auto title = window.area(1, 0, 4, 1);
+    TextField body(window.area(1, 1, 4, 2), example_text);
     
     ALLEGRO_EVENT event;
     bool play = true;
-    double time_prior = al_get_time();
+    double time_current = al_get_time(), time_prior = time_current;
     // double lag = 0.0, step_size = 1.0 / 60.0;
 
     /// MAIN LOOP
     while (play) {
-        double time_current = al_get_time(),
-               time_elapsed = time_current - time_prior;
+        double time_elapsed = time_current - time_prior;
 
         /// HANDLE EVENTS
         while (al_get_next_event(event_queue, &event)) {
+            body.handle_event(event);
             switch (event.type) {
             case ALLEGRO_EVENT_KEY_DOWN:
                 play = event.keyboard.keycode != ALLEGRO_KEY_ESCAPE;
@@ -109,10 +100,18 @@ int main(int argc, char **argv) {
 
         /// RENDER
         al_clear_to_color(al_map_rgb(0,0,0));
-        draw_ui(font, time_current * 100);
+        title.draw_outline(al_color_name("grey"), 2.f);
+        body.area().draw_outline(al_color_name("grey"), 2.f);
+        draw_text_with_effects(
+            title, Align{AlignX::CENTER, AlignY::CENTER}, 2.f, 0.f,
+            font, al_color_name("snow"), "HELLO WORLD!",
+            WavyTextEffect(100.f,8.f,time_current*75.0),
+            RainbowTextEffect(time_current*100.f));
+        body.render(Theme{font, al_color_name("snow")});
         al_flip_display();
-        
+
         time_prior = time_current;
+        time_current = al_get_time();
     }
 
     al_destroy_font(font);
