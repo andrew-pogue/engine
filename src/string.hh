@@ -79,6 +79,32 @@ struct String {
     void set_char(int i, int ch) { al_ustr_set_chr(ustr_, al_ustr_offset(ustr_, i),  ch); }
     int get_char(int i) const { return al_ustr_get(ustr_, al_ustr_offset(ustr_, i)); }
 
+    struct Character {
+
+        Character(ALLEGRO_USTR *ustr, int i)
+            : index{i}, ustr{ustr}
+        { assert(ustr); }
+
+        void operator=(int ch) { al_ustr_set_chr(ustr, al_ustr_offset(ustr, index), ch); }
+        operator int() const { return al_ustr_get(ustr, al_ustr_offset(ustr, index)); }
+
+        bool operator<(int ch) const { return ch < (int)(*this); }
+        bool operator>(int ch) const { return ch > (int)(*this); }
+        bool operator==(int ch) const { return ch == (int)(*this); }
+        bool operator!=(int ch) const { return ch != (int)(*this); }
+        bool operator<=(int ch) const { return ch <= (int)(*this); }
+        bool operator>=(int ch) const { return ch >= (int)(*this); }
+
+    private:
+
+        int index;
+        ALLEGRO_USTR *ustr; // non-owning
+    
+    }; // struct Character
+
+    const Character operator[](int i) const { return Character(ustr_, i); }
+          Character operator[](int i)       { return Character(ustr_, i); }
+
     bool replace(int i, int j, const String &str) {
         return al_ustr_replace_range(ustr_, al_ustr_offset(ustr_, i), al_ustr_offset(ustr_, j), str.get());
     }
@@ -111,8 +137,8 @@ struct String {
 
     }; // struct ConstIterator
 
-    ConstIterator cbegin() const { return ConstIterator(ustr_, al_ustr_offset(ustr_, 0)); }
-    ConstIterator cend() const { return ConstIterator(ustr_, al_ustr_size(ustr_)); }
+    ConstIterator begin() const { return ConstIterator(ustr_, al_ustr_offset(ustr_, 0)); }
+    ConstIterator end() const { return ConstIterator(ustr_, al_ustr_size(ustr_)); }
 
 private:
     

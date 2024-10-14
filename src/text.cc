@@ -1,8 +1,5 @@
-#include <allegro5/allegro_color.h>
 #include <cassert>
-#include <cmath>
-#include <initializer_list>
-#include "math.hh"
+#include <iostream>
 #include "text.hh"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -16,47 +13,43 @@ namespace {
 
 // wanna do: advance index next on all characters in string
 
-struct DrawGlyphInfo {
-    float x, y;
-};
-
 struct MultilineData {
-    const Rectangle textbox;
-    const AlignX align;
-    const float spacing;
+    const float x, y, height, spacing;
+    const Align::Horizontal align;
     const ALLEGRO_FONT *const font;
-    ALLEGRO_COLOR color;
-    std::initializer_list<TextEffectCall *> effects;
+    std::function<void(int index, int ln, int ch, float x, float y)> call;
     float advance = 0.f; // vertical advance
     int index = 0;
 };
 
-bool draw_text_with_effects_helper(int ln, const ALLEGRO_USTR *ustr, void *extra) {
+bool do_textbox_per_char_helper(int ln, const ALLEGRO_USTR *ustr, void *extra) {
     MultilineData &data = *(MultilineData *)extra;
-    data.index += int(ln != 0); // account for the deliminator character
+    if (!data.call) return false;
 
-    float y = data.textbox.y + data.advance;
-    if (y > data.textbox.y + data.textbox.height) return false;
+    float y = data.y + data.advance;
+    if (y > data.y + data.height) return false;
 
     const float h = al_get_font_line_height(data.font);
     data.advance += h + data.spacing;
-    if (y < data.textbox.y - h) { data.index += al_ustr_length(ustr); return true; }
+    if (y < data.y - h) {
+        data.index += al_ustr_length(ustr)+1;
+        return true;
+    }
 
     const float w = al_get_ustr_width(data.font, ustr);
-    float x = data.textbox.x
-        - float(data.align == AlignX::RIGHT) * w
-        - float(data.align == AlignX::CENTER) * w / 2.f;
+    float x = data.x
+        - float(data.align == Align::RIGHT) * w
+        - float(data.align == Align::CENTER_X) * w / 2.f;
 
     const auto draw_char = 
         [&](int ch, int advance) {
             x += advance;
-            for (auto effect : data.effects) (*effect)(data.index, ln, ch, x, y, data.color);
-            if (ch > 0) al_draw_glyph(data.font, data.color, x, y, ch);
+            data.call(data.index++, ln, ch, x, y);
             return true;
         };
     
     ALLEGRO_USTR_INFO info;
-    do_per_char(data.font, al_ref_ustr(&info, ustr, 0, al_ustr_size(ustr)), draw_char);
+    do_text_per_char(data.font, al_ref_ustr(&info, ustr, 0, al_ustr_size(ustr)), draw_char);
     
     return true;
 }
@@ -76,70 +69,63 @@ bool get_cstr_line_count_helper(int ln, const char *str, int size, void *count) 
 ///////////////////////////////////////////////////////////////////////////////
 /// GLOBAL API
 
-// RULES:
-// multiple text effects can stack
-// effects are applied in the order that they are declared
-// effects mutate the x, y, ch, color before drawing
-
-void do_per_char(
+void do_text_per_char(
     const ALLEGRO_FONT *font, const char *cstr,
     std::function<bool(int ch, int advance)> call
 ) {
     assert(font); assert(cstr); assert(call);
     ALLEGRO_USTR_INFO info;
-    do_per_char(font, al_ref_cstr(&info, cstr), call);
+    do_text_per_char(font, al_ref_cstr(&info, cstr), call);
 }
 
-void do_per_char(
+void do_text_per_char(
     const ALLEGRO_FONT *font, const ALLEGRO_USTR *ustr,
     std::function<bool(int ch, int advance)> call
 ) {
     assert(font); assert(ustr); assert(call);
-
+    if (!font || !ustr || !call) return;
     int pos = al_ustr_offset(ustr, 0),
         prev_ch = ALLEGRO_NO_KERNING,
-        ch = al_ustr_get(ustr, pos);
-    if (ch == -1) return;
-    while (
-        call(ch, al_get_glyph_advance(font, prev_ch, ch))
-        && al_ustr_next(ustr, &pos)
-    ) {
-        ch = al_ustr_get(ustr, pos);
+        ch = al_ustr_get_next(ustr, &pos);
+    bool exit = false;
+    while (!exit && ch != -1) {
+        exit = !call(ch, al_get_glyph_advance(font, prev_ch, ch));
         prev_ch = ch;
-    } 
+        ch = al_ustr_get_next(ustr, &pos);
+    }
+    if (!exit) call(-1, al_get_glyph_advance(font, prev_ch, ALLEGRO_NO_KERNING));
 }
 
-void draw_text_with_effects(
+void do_textbox_per_char(
     Rectangle textbox, Align align, float spacing, float scroll,
-    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const char *cstr,
-    std::convertible_to<TextEffectCall> auto... effects
+    const ALLEGRO_FONT *font, const char *cstr,
+    std::function<void(int index, int ln, int ch, float x, float y)> call
 ) {
-    assert(font); assert(cstr);
+    assert(font); assert(cstr); assert(call);
     ALLEGRO_USTR_INFO info;
-    draw_text_with_effects(textbox, align, spacing, scroll, font, color,
-        al_ref_cstr(&info, cstr), effects...);
+    do_textbox_per_char(textbox, align, spacing, scroll, font,
+        al_ref_cstr(&info, cstr), call);
 }
 
-void draw_text_with_effects(
+void do_textbox_per_char(
     Rectangle textbox, Align align, float spacing, float scroll,
-    const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const ALLEGRO_USTR *ustr,
-    std::convertible_to<TextEffectCall> auto... effects
+    const ALLEGRO_FONT *font, const ALLEGRO_USTR *ustr,
+    std::function<void(int index, int ln, int ch, float x, float y)> call
 ) {
-    assert(font); assert(ustr);
+    assert(font); assert(ustr); assert(call);
 
     // align the text horizontally within the textbox:
     float x = textbox.x
-        + float(align.x == AlignX::RIGHT) * textbox.width
-        + float(align.x == AlignX::CENTER) * textbox.width / 2.f;
+        + float(align.x == Align::RIGHT) * textbox.width
+        + float(align.x == Align::CENTER_X) * textbox.width / 2.f;
     // align the text vertically within the textbox:
     float h = get_text_height(textbox.width, spacing, font, ustr);
     float y = textbox.y
-        + float(align.y == AlignY::BOTTOM) * (textbox.height - h)
-        + float(align.y == AlignY::CENTER) * (textbox.height - h) / 2.f;
+        + float(align.y == Align::BOTTOM) * (textbox.height - h)
+        + float(align.y == Align::CENTER_Y) * (textbox.height - h) / 2.f;
     
-    auto data = MultilineData{textbox, align.x, spacing, font,
-        { (TextEffectCall)effects... }, scroll};
-    al_do_multiline_ustr(font, textbox.width, ustr, draw_text_with_effects_helper, &data);
+    auto data = MultilineData{x, y, textbox.height, spacing, align.x, font, call, scroll};
+    al_do_multiline_ustr(font, textbox.width, ustr, do_textbox_per_char_helper, &data);
 }
 
 float get_text_height(float width, float spacing, const ALLEGRO_FONT *font, const char *cstr) {
@@ -160,23 +146,5 @@ int get_text_line_count(float width, const ALLEGRO_FONT *font, const ALLEGRO_UST
     int count = 0;
     al_do_multiline_ustr(font, width, ustr, get_ustr_line_count_helper, &count);
     return count;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// TEXT EFFECTS
-
-
-RainbowTextEffect::RainbowTextEffect(float shift) : shift(shift) {}
-
-void RainbowTextEffect::operator()(int index, int ln, int &ch, float &x, float &y, ALLEGRO_COLOR &color) {
-    color = al_color_hsv(fmod(360.0f * sinf(x) + shift, 360.0f), 0.8f, 0.8f);
-}
-
-WavyTextEffect::WavyTextEffect(float length, float height, float shift)
-    : wave_length(length), wave_height(height), wave_shift(shift)
-{ }
-
-void WavyTextEffect::operator()(int index, int ln, int &ch, float &x, float &y, ALLEGRO_COLOR &color) {
-    y += sinf(2.f * PI / wave_length * (x + wave_shift)) * wave_height / 2.f;
 }
 

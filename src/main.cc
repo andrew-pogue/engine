@@ -6,8 +6,8 @@
 #include <iostream>
 
 #include "layout.hh"
-#include "text.hh"
-#include "textfield.hh"
+#include "text-effect.hh"
+#include "text-editor.hh"
 
 const int DISPLAY_WIDTH = 640, DISPLAY_HEIGHT = 480;
 
@@ -58,7 +58,8 @@ int main(int argc, char **argv) {
 
     GridLayout window({0.f, 0.f, float(DISPLAY_WIDTH), float(DISPLAY_HEIGHT)}, 6, 4, {20.f, 20.f});
     auto title = window.area(1, 0, 4, 1);
-    TextField body(window.area(1, 1, 4, 2), example_text);
+    TextEditor body(window.area(1, 1, 4, 2), font, al_color_name("snow"), example_text);
+    body.padding = { 4.f, 4.f };
     
     ALLEGRO_EVENT event;
     bool play = true;
@@ -101,13 +102,12 @@ int main(int argc, char **argv) {
         /// RENDER
         al_clear_to_color(al_map_rgb(0,0,0));
         title.draw_outline(al_color_name("grey"), 2.f);
-        body.area().draw_outline(al_color_name("grey"), 2.f);
-        draw_text_with_effects(
-            title, Align{AlignX::CENTER, AlignY::CENTER}, 2.f, 0.f,
-            font, al_color_name("snow"), "HELLO WORLD!",
+        body.bounds.draw_outline(al_color_name("grey"), 2.f);
+        draw_textbox_with_effects(
+            title, {Align::CENTER_X, Align::CENTER_Y}, 2.f, 0.f, font, al_color_name("snow"), "HELLO WORLD!",
             WavyTextEffect(100.f,8.f,time_current*75.0),
             RainbowTextEffect(time_current*100.f));
-        body.render(Theme{font, al_color_name("snow")});
+        body.render();
         al_flip_display();
 
         time_prior = time_current;

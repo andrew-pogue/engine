@@ -8,7 +8,7 @@ enum {
     MIDDLE_MOUSE_BUTTON = 4
 };
 
-class Mouse {
+class MouseLog {
 private:
 
     int x_, y_, dz_, dw_;
