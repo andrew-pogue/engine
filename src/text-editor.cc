@@ -17,7 +17,7 @@ TextEditor::TextEditor(Rectangle area, const ALLEGRO_FONT *font, ALLEGRO_COLOR c
     , font(font), color(color)
     , scroll{0.f}, spacing{0.f}, padding{0.f, 0.f}
     , align{Align::LEFT, Align::TOP}
-    , cursor{0}, lines(), chars()
+    , cursor{0, 0}, lines(), chars()
 {
     assert(font);
     chars.reserve(string.length());
@@ -62,7 +62,7 @@ void TextEditor::render() const {
             x += al_get_glyph_advance(font, prev_ch, ch);
             al_draw_glyph(font, color, x, y, ch);
             prev_ch = ch;
-            if (i == cursor) {
+            if (i == cursor.index) {
                 al_draw_filled_rectangle(
                     x - 2.f, y - 2.f,
                     x + 2.f, y + line_height + 2.f,
@@ -106,8 +106,8 @@ int TextEditor::line_end(int ln) const {
 }
 
 int TextEditor::line_number(int i) const {
-    if (i < 0) i += chars.size();
-    assert(i >= 0);
+    if (i < 0) i += char_count();
+    assert(i >= 0 && i < char_count());
     int ln = 0;
     while (ln < line_count() && i > line_end(ln)) ln++;
     return ln;
@@ -145,9 +145,42 @@ int find_index(float y, float x) {
 
 String TextEditor::to_string() const { 
     String string;
-    std::vector<int> chars;
     for (int ch : chars) string.append(ch);
     return string;
+}
+
+void TextEditor::go_to(int i) {
+    if (i < 0) i += char_count();
+    if (i >= 0 && i < char_count()) cursor.index = i;
+}
+
+// moving cursor up and down needs to account for kerning and alignment
+void TextEditor::go_to_line(int ln) {
+    assert(font);
+    if (ln < 0) ln += line_count();
+    if (ln < 0 || ln >= line_count()) return;
+
+    int begin = line_begin(ln),
+        end = line_end(ln);
+
+    int offset = cursor.offset;
+    if (align.x == Align::RIGHT) offset = line_width(ln) + offset;
+    else if (align.x == Align::CENTER_X) offset = line_width(ln) / 2 + offset;
+
+    cursor.index = begin;
+    int prev_ch = ALLEGRO_NO_KERNING;
+    for (int i = begin; i <= end && offset > 0; i++) {
+        int ch = chars[i];
+        if (ch < 0) continue;
+        int advance = al_get_glyph_advance(font, prev_ch, ch);
+        if (advance > offset) {
+            if (advance / 2 > offset) cursor.index = i;
+            break;
+        }
+        offset -= advance;
+        cursor.index = i;
+        prev_ch = ch;
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -156,40 +189,42 @@ String TextEditor::to_string() const {
 void TextEditor::handle_input(int keycode, int unichar) {
     switch(keycode) {
     case ALLEGRO_KEY_UP: {
-            int cursor_ln = line_number(cursor);
-            if (cursor_ln > 0) go_to_line(cursor_ln-1);
+            int ln = line_number(cursor.index);
+            if (ln > 0) go_to_line(ln-1);
         } break;
     case ALLEGRO_KEY_DOWN: {
-            int cursor_ln = line_number(cursor);
-            if (cursor_ln < line_count()-1) go_to_line(cursor_ln+1);
+            int ln = line_number(cursor.index);
+            if (ln < line_count()-1) go_to_line(ln+1);
         } break;
     case ALLEGRO_KEY_LEFT:
-        if (cursor > 0) {
-            cursor--;
+        if (cursor.index > 0) {
+            cursor.index--;
+            cursor.offset = offset_from_alignment(cursor.index);
         } break;
     case ALLEGRO_KEY_RIGHT:
-        if (cursor < char_count()-1) {
-            cursor++;
+        if (cursor.index < char_count()-1) {
+            cursor.index++;
+            cursor.offset = offset_from_alignment(cursor.index);
         } break;
     case ALLEGRO_KEY_BACKSPACE:
-        if (cursor > 0) {
-            remove(--cursor);
+        if (cursor.index > 0) {
+            remove(--cursor.index);
         } break;
     case ALLEGRO_KEY_DELETE:
-        if (cursor >= 0 && cursor < char_count()-1) {
-            remove(cursor);
+        if (cursor.index >= 0 && cursor.index < char_count()-1) {
+            remove(cursor.index);
         } break;
     case ALLEGRO_KEY_ENTER: {
-            int cursor_ln = line_number(cursor);
+            int ln = line_number(cursor.index);
             printf("cursor=%i ln=%i begin=%i end=%i length=%i width=%i\n",
-                cursor, cursor_ln, line_begin(cursor_ln), line_end(cursor_ln),
-                line_end(cursor_ln) - line_begin(cursor_ln), line_width(cursor_ln));
+                cursor.index, ln, line_begin(ln), line_end(ln),
+                line_end(ln) - line_begin(ln), line_width(ln));
         } break;
     //case ALLEGRO_KEY_TAB: string.append('\t'); break;
     case ALLEGRO_KEY_ESCAPE: break;
     default:
         if (unichar > 0) {
-            insert(cursor++, unichar);
+            insert(cursor.index++, unichar);
         } break;
     }
 }
@@ -211,6 +246,7 @@ void TextEditor::parse(int from, int to) {
         int advance = al_get_glyph_advance(font, prev_ch, ch);
         // if end of word
         if (isspace(ch)) {
+            if (word_width) num_words++;
             // if end of line
             if (line_width + word_width + advance > width) {
                 lines.emplace_back(line_begin, word_begin-1, line_width);
@@ -224,44 +260,46 @@ void TextEditor::parse(int from, int to) {
         } else word_width += advance;
         prev_ch = ch;
     }
+    
+    cursor.offset = offset_from_alignment(cursor.index);
 }
 
-// moving cursor up and down needs to account for kerning and alignment
-bool TextEditor::go_to_line(int ln) {
+int TextEditor::offset_from_alignment(int i) const {
     assert(font);
-    if (ln < 0) ln += line_count();
-    if (ln < 0 || ln >= line_count()) return false;
+    if (i < 0) i += char_count();
+    assert(i >= 0 && i < char_count());
 
-    const int cursor_ln = line_number(cursor);
-    int offset = 0; // horizontal distance in pixels of the cursor from point of alignment
-    int begin = line_begin(cursor_ln),
-        end = line_end(cursor_ln);
-    bool left_of_center = false;
-    assert(begin < end);
+    const int ln = line_number(i);
+    int offset = 0; 
+    int begin = line_begin(ln),
+        end = line_end(ln);
+    bool negate = false;
+    assert(begin <= end);
 
     switch (align.x) {
     case Align::LEFT:
-        end = cursor;
+        end = i;
         break;
     case Align::RIGHT:
-        begin = cursor+1;
+        begin = i+1;
+        negate = true;
         break;
     case Align::CENTER_X: {
             int center = begin + (end - begin) / 2;
-            if (cursor < center) {
-                left_of_center = true;
-                begin = cursor+1;
+            if (i < center) {
+                begin = i+1;
                 end = center;
+                negate = true;
             } else {
                 begin = center+1;
-                end = cursor;
+                end = i;
             }
         } break;
     }
     
     assert(begin >= 0 && begin < chars.size());
     assert(end >= 0 && end < chars.size());
-    int prev_ch = begin > line_begin(cursor_ln) ? chars[begin - 1] : ALLEGRO_NO_KERNING;
+    int prev_ch = begin > line_begin(ln) ? chars[begin - 1] : ALLEGRO_NO_KERNING;
     for (int i = begin; i <= end; i++) {
         int ch = chars[i];
         if (ch < 0) continue;
@@ -269,35 +307,6 @@ bool TextEditor::go_to_line(int ln) {
         prev_ch = ch;
     }
 
-    begin = line_begin(ln);
-    end = line_end(ln);
-    prev_ch = ALLEGRO_NO_KERNING;
-    cursor = begin;
-
-    switch (align.x) {
-    case Align::RIGHT:
-        offset = line_width(ln) - offset;
-        break;
-    case Align::CENTER_X:
-        if (left_of_center)
-            offset = line_width(ln) / 2 - offset;
-        else offset = line_width(ln) / 2 + offset;
-        break;
-    }
-
-    for (int i = begin; i <= end && offset > 0; i++) {
-        int ch = chars[i];
-        if (ch < 0) continue;
-        int advance = al_get_glyph_advance(font, prev_ch, ch);
-        if (advance > offset) {
-            if (advance / 2 > offset) cursor = i;
-            break;
-        }
-        offset -= advance;
-        cursor = i;
-        prev_ch = ch;
-    }
-
-    return true;
+    return negate ? -offset : offset;
 }
 

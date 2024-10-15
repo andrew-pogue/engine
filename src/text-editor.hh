@@ -17,25 +17,24 @@
 // can select multiple characters via mouse
 // insert c-string or u-string at index
 // copy and paste
+// search and replace
+// undo and redo
 
 struct TextEditor : Widget {
 
     const ALLEGRO_FONT *font; // non-owning
     ALLEGRO_COLOR color;
-    String string;
     float scroll, spacing;
     Vector2<float> padding;
     Align align;
-    int cursor;
 
     TextEditor(Rectangle area, const ALLEGRO_FONT *font, ALLEGRO_COLOR color, String &&string);
 
     void render() const override;
     bool handle_event(const ALLEGRO_EVENT &event) override;
 
-    // get the total number of lines
+    constexpr int word_count() const noexcept { return num_words; }
     constexpr int line_count() const noexcept { return lines.size(); }
-    // get the total number of characters
     constexpr int char_count() const noexcept { return chars.size(); }
     // get the index of the start of the line with the given line number
     int line_begin(int ln) const;
@@ -76,22 +75,30 @@ struct TextEditor : Widget {
     int at(int i) const { return chars.at(i); }
     int &at(int i) { return chars.at(i); }
 
-    void push(int ch) { chars.push_back(ch); }
-    void pop() { chars.pop_back(); }
+    void go_to_line(int ln);
+    void go_to(int i);
 
 private:
 
+    struct Cursor { int index, offset; };
     struct LineInfo { int begin, end, width; };
 
     // each int represents a unicode character
     std::vector<int> chars;
     // the begin and end of each line, needed for vertical cursor movement
     std::vector<LineInfo> lines;
+    Cursor cursor;
+    int num_words;
 
     void handle_input(int keycode, int unichar);
     void parse(int from=0, int to=-1);
-    bool go_to_line(int ln);
     
+    // Gets the width in pixels between the start of the character at the index
+    // and the point of alignment. The point of alignment can be the beginning of the line [Align::LEFT],
+    // the middle of the line [Align::CENTER_X], or the end of the line [Align::RIGHT]. Used for
+    // vertical cursor movement.
+    int offset_from_alignment(int i) const;
+
     // int find_index(float x, float y);
 
 };
