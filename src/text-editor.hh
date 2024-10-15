@@ -5,15 +5,15 @@
 #include "layout.hh"
 #include "string.hh"
 #include "text-effect.hh"
-#include "vector2.hh"
 #include "widget.hh"
+#include "vector2.hh"
     
 // TODO:
-// blinking cursor
+// blinking caret
 // write tests
 // support for text effects
-// insertion mode (typing replaces character after cursor)
-// mouse click changes cursor index
+// insertion mode (typing replaces character after caret)
+// mouse click changes caret index
 // can select multiple characters via mouse
 // insert c-string or u-string at index
 // copy and paste
@@ -22,20 +22,27 @@
 
 struct TextEditor : Widget {
 
-    const ALLEGRO_FONT *font; // non-owning
+    // These values can be changed without needed to re-parse the text:
+
     ALLEGRO_COLOR color;
     float scroll, spacing;
-    Vector2<float> padding;
     Align align;
-
+    
     TextEditor(Rectangle area, const ALLEGRO_FONT *font, ALLEGRO_COLOR color, String &&string);
+
+    const ALLEGRO_FONT *font() const { return font_; }
+    void font(const ALLEGRO_FONT *font);
+
+    Vector2<float> padding() const { return padding_; }
+    void padding(Vector2<float> val);
+    void padding(float x, float y) { padding({x, y}); }
 
     void render() const override;
     bool handle_event(const ALLEGRO_EVENT &event) override;
 
-    constexpr int word_count() const noexcept { return num_words; }
-    constexpr int line_count() const noexcept { return lines.size(); }
-    constexpr int char_count() const noexcept { return chars.size(); }
+    constexpr int word_count() const noexcept { return word_count_; }
+    constexpr int line_count() const noexcept { return lines_.size(); }
+    constexpr int char_count() const noexcept { return chars_.size(); }
     // get the index of the start of the line with the given line number
     int line_begin(int ln) const;
     // get the index of the end of the line with the given line number
@@ -47,11 +54,11 @@ struct TextEditor : Widget {
 
     String to_string() const;
 
-    auto cbegin() const { return chars.cbegin(); }
-    auto cend() const { return chars.cend(); }
+    auto cbegin() const { return chars_.cbegin(); }
+    auto cend() const { return chars_.cend(); }
 
-    auto begin() { return chars.begin(); }
-    auto end() { return chars.end(); }
+    auto begin() { return chars_.begin(); }
+    auto end() { return chars_.end(); }
 
     void insert(int i, int ch);
     void remove(int i);
@@ -63,17 +70,17 @@ struct TextEditor : Widget {
     // String get_line(int ln) const;
     
     int operator[](int i) const noexcept {
-        assert(i >= 0 && i < chars.size());
-        return chars[i];
+        assert(i >= 0 && i < chars_.size());
+        return chars_[i];
     }
 
     int &operator[](int i) noexcept {
-        assert(i >= 0 && i < chars.size());
-        return chars[i];
+        assert(i >= 0 && i < chars_.size());
+        return chars_[i];
     }
 
-    int at(int i) const { return chars.at(i); }
-    int &at(int i) { return chars.at(i); }
+    int at(int i) const { return chars_.at(i); }
+    int &at(int i) { return chars_.at(i); }
 
     void go_to_line(int ln);
     void go_to(int i);
@@ -83,12 +90,14 @@ private:
     struct Cursor { int index, offset; };
     struct LineInfo { int begin, end, width; };
 
+    const ALLEGRO_FONT *font_; // non-owning
+    Vector2<float> padding_;
     // each int represents a unicode character
-    std::vector<int> chars;
-    // the begin and end of each line, needed for vertical cursor movement
-    std::vector<LineInfo> lines;
-    Cursor cursor;
-    int num_words;
+    std::vector<int> chars_;
+    // the begin and end of each line, needed for vertical caret movement
+    std::vector<LineInfo> lines_;
+    Cursor caret_;
+    int word_count_;
 
     void handle_input(int keycode, int unichar);
     void parse(int from=0, int to=-1);
@@ -96,7 +105,7 @@ private:
     // Gets the width in pixels between the start of the character at the index
     // and the point of alignment. The point of alignment can be the beginning of the line [Align::LEFT],
     // the middle of the line [Align::CENTER_X], or the end of the line [Align::RIGHT]. Used for
-    // vertical cursor movement.
+    // vertical caret movement.
     int offset_from_alignment(int i) const;
 
     // int find_index(float x, float y);

@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
     GridLayout window({0.f, 0.f, float(DISPLAY_WIDTH), float(DISPLAY_HEIGHT)}, 6, 4, {20.f, 20.f});
     auto title = window.area(1, 0, 4, 1);
     TextEditor body(window.area(1, 1, 4, 2), font, al_color_name("snow"), example_text);
-    body.padding = { 4.f, 4.f };
+    body.padding(8.f, 8.f);
     
     ALLEGRO_EVENT event;
     bool play = true;

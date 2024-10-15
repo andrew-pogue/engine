@@ -5,7 +5,7 @@
 #include "text-editor.hh"
 
 // NOTE:
-// cursor is drawn at the front of the character at its index
+// caret is drawn at the front of the character at its index
 // the portion of the text after an insertion or deletion needs to be parsed
 //      or the line info will be wrong
 
@@ -14,32 +14,43 @@
 
 TextEditor::TextEditor(Rectangle area, const ALLEGRO_FONT *font, ALLEGRO_COLOR color, String &&string)
     : Widget(area)
-    , font(font), color(color)
-    , scroll{0.f}, spacing{0.f}, padding{0.f, 0.f}
+    , color(color), scroll{0.f}, spacing{0.f}
     , align{Align::LEFT, Align::TOP}
-    , cursor{0, 0}, lines(), chars()
+    , font_(font), padding_{0.f, 0.f}
+    , lines_(), chars_(), caret_{0, 0}, word_count_(0)
 {
-    assert(font);
-    chars.reserve(string.length());
-    for (int ch : string) chars.push_back(ch);
+    assert(font_);
+    chars_.reserve(string.length());
+    for (int ch : string) chars_.push_back(ch);
     parse();
 }
 
+void TextEditor::font(const ALLEGRO_FONT *font) {
+    font_ = font;
+    parse();
+}
+
+void TextEditor::padding(Vector2<float> val) {
+    bool reparse = padding_.x != val.x;
+    padding_ = val;
+    if (reparse) parse();
+}
+
 void TextEditor::render() const {
-    if (!font) return;
+    if (!font_) return;
     int prev_clip_x=0, prev_clip_y=0, prev_clip_w=0, prev_clip_h=0;
     al_get_clipping_rectangle(&prev_clip_x, &prev_clip_y, &prev_clip_w, &prev_clip_h);
     const bool was_drawing_held = al_is_bitmap_drawing_held();
 
     const float
-        min_x = bounds.x + padding.x,
-        min_y = bounds.y + padding.y,
-        max_x = bounds.x + bounds.width - padding.x * 2.f,
-        max_y = bounds.y + bounds.height - padding.y * 2.f;
+        min_x = bounds.x + padding_.x,
+        min_y = bounds.y + padding_.y,
+        max_x = bounds.x + bounds.width - padding_.x,
+        max_y = bounds.y + bounds.height - padding_.y;
     //al_draw_filled_rectangle(min_x, min_y, max_x, max_y, al_map_rgb(0,0,255));
     al_set_clipping_rectangle(min_x-2.f, min_y-2.f, max_x-min_x+4.f, max_y-min_y+4.f);
 
-    const int line_height = al_get_font_line_height(font);
+    const int line_height = al_get_font_line_height(font_);
     int ln = 0;
     float y = min_y - scroll;
 
@@ -52,17 +63,17 @@ void TextEditor::render() const {
     while (ln < line_count() && y < max_y) {
         float x = min_x;
         if (align.x == Align::RIGHT)
-            x += bounds.width - line_width(ln);
+            x = max_x - line_width(ln);
         if (align.x == Align::CENTER_X)
-            x += (bounds.width - line_width(ln)) / 2.f;
+            x = max_x - line_width(ln) / 2;
         //al_draw_filled_rectangle(x, y, x + line_width(ln), y + line_height, al_map_rgb(0,0,255));
         int prev_ch = ALLEGRO_NO_KERNING;
         for (int i = line_begin(ln); i <= line_end(ln); i++) {
-            int ch = chars.at(i);
-            x += al_get_glyph_advance(font, prev_ch, ch);
-            al_draw_glyph(font, color, x, y, ch);
+            int ch = chars_.at(i);
+            x += al_get_glyph_advance(font_, prev_ch, ch);
+            al_draw_glyph(font_, color, x, y, ch);
             prev_ch = ch;
-            if (i == cursor.index) {
+            if (i == caret_.index) {
                 al_draw_filled_rectangle(
                     x - 2.f, y - 2.f,
                     x + 2.f, y + line_height + 2.f,
@@ -92,16 +103,16 @@ bool TextEditor::handle_event(const ALLEGRO_EVENT &event) {
 }
 
 int TextEditor::line_begin(int ln) const {
-    if (ln < 0) ln += lines.size();
-    int begin = lines.at(ln).begin;
-    assert(begin >= 0 && begin < chars.size());
+    if (ln < 0) ln += lines_.size();
+    int begin = lines_.at(ln).begin;
+    assert(begin >= 0 && begin < chars_.size());
     return begin;
 }
 
 int TextEditor::line_end(int ln) const {
-    if (ln < 0) ln += lines.size();
-    int end = lines.at(ln).end;
-    assert(end >= 0 && end < chars.size());
+    if (ln < 0) ln += lines_.size();
+    int end = lines_.at(ln).end;
+    assert(end >= 0 && end < chars_.size());
     return end;
 }
 
@@ -114,19 +125,19 @@ int TextEditor::line_number(int i) const {
 }
 
 int TextEditor::line_width(int ln) const {
-    if (ln < 0) ln += lines.size();
-    return lines.at(ln).width;
+    if (ln < 0) ln += lines_.size();
+    return lines_.at(ln).width;
 }
 
 void TextEditor::insert(int i, int ch) {
-    if (i < 0) i += chars.size();
-    chars.insert(chars.begin() + i, ch);
+    if (i < 0) i += chars_.size();
+    chars_.insert(chars_.begin() + i, ch);
     parse(line_number(i));
 }
 
 void TextEditor::remove(int i) {
-    if (i < 0) i += chars.size();
-    chars.erase(chars.begin() + i);
+    if (i < 0) i += chars_.size();
+    chars_.erase(chars_.begin() + i);
     parse(line_number(i));
 }
 
@@ -145,40 +156,40 @@ int find_index(float y, float x) {
 
 String TextEditor::to_string() const { 
     String string;
-    for (int ch : chars) string.append(ch);
+    for (int ch : chars_) string.append(ch);
     return string;
 }
 
 void TextEditor::go_to(int i) {
     if (i < 0) i += char_count();
-    if (i >= 0 && i < char_count()) cursor.index = i;
+    if (i >= 0 && i < char_count()) caret_.index = i;
 }
 
-// moving cursor up and down needs to account for kerning and alignment
+// moving caret up and down needs to account for kerning and alignment
 void TextEditor::go_to_line(int ln) {
-    assert(font);
+    assert(font_);
     if (ln < 0) ln += line_count();
     if (ln < 0 || ln >= line_count()) return;
 
     int begin = line_begin(ln),
         end = line_end(ln);
 
-    int offset = cursor.offset;
+    int offset = caret_.offset;
     if (align.x == Align::RIGHT) offset = line_width(ln) + offset;
     else if (align.x == Align::CENTER_X) offset = line_width(ln) / 2 + offset;
 
-    cursor.index = begin;
+    caret_.index = begin;
     int prev_ch = ALLEGRO_NO_KERNING;
     for (int i = begin; i <= end && offset > 0; i++) {
-        int ch = chars[i];
+        int ch = chars_[i];
         if (ch < 0) continue;
-        int advance = al_get_glyph_advance(font, prev_ch, ch);
+        int advance = al_get_glyph_advance(font_, prev_ch, ch);
         if (advance > offset) {
-            if (advance / 2 > offset) cursor.index = i;
+            if (advance / 2 > offset) caret_.index = i;
             break;
         }
         offset -= advance;
-        cursor.index = i;
+        caret_.index = i;
         prev_ch = ch;
     }
 }
@@ -189,83 +200,89 @@ void TextEditor::go_to_line(int ln) {
 void TextEditor::handle_input(int keycode, int unichar) {
     switch(keycode) {
     case ALLEGRO_KEY_UP: {
-            int ln = line_number(cursor.index);
+            int ln = line_number(caret_.index);
             if (ln > 0) go_to_line(ln-1);
         } break;
     case ALLEGRO_KEY_DOWN: {
-            int ln = line_number(cursor.index);
+            int ln = line_number(caret_.index);
             if (ln < line_count()-1) go_to_line(ln+1);
         } break;
     case ALLEGRO_KEY_LEFT:
-        if (cursor.index > 0) {
-            cursor.index--;
-            cursor.offset = offset_from_alignment(cursor.index);
+        if (caret_.index > 0) {
+            caret_.index--;
+            caret_.offset = offset_from_alignment(caret_.index);
         } break;
     case ALLEGRO_KEY_RIGHT:
-        if (cursor.index < char_count()-1) {
-            cursor.index++;
-            cursor.offset = offset_from_alignment(cursor.index);
+        if (caret_.index < char_count()-1) {
+            caret_.index++;
+            caret_.offset = offset_from_alignment(caret_.index);
         } break;
     case ALLEGRO_KEY_BACKSPACE:
-        if (cursor.index > 0) {
-            remove(--cursor.index);
+        if (caret_.index > 0) {
+            remove(--caret_.index);
         } break;
     case ALLEGRO_KEY_DELETE:
-        if (cursor.index >= 0 && cursor.index < char_count()-1) {
-            remove(cursor.index);
+        if (caret_.index >= 0 && caret_.index < char_count()-1) {
+            remove(caret_.index);
         } break;
     case ALLEGRO_KEY_ENTER: {
-            int ln = line_number(cursor.index);
-            printf("cursor=%i ln=%i begin=%i end=%i length=%i width=%i\n",
-                cursor.index, ln, line_begin(ln), line_end(ln),
+            int ln = line_number(caret_.index);
+            printf("caret=%i ln=%i begin=%i end=%i length=%i width=%i\n",
+                caret_.index, ln, line_begin(ln), line_end(ln),
                 line_end(ln) - line_begin(ln), line_width(ln));
         } break;
     //case ALLEGRO_KEY_TAB: string.append('\t'); break;
     case ALLEGRO_KEY_ESCAPE: break;
     default:
         if (unichar > 0) {
-            insert(cursor.index++, unichar);
+            insert(caret_.index++, unichar);
         } break;
     }
 }
 
-// parses the character array to get metadata about lines; where they begin and end
+// parses the character array to get metadata about lines; their width, where they begin and end
 void TextEditor::parse(int from, int to) {
-    assert(font);
-    if (from < 0) from += lines.size();
-    if (to < 0) to += lines.size();
-    lines.clear();
+    assert(font_);
+    if (from < 0) from += lines_.size();
+    if (to < 0) to += lines_.size();
+    lines_.clear();
 
-    const int width = bounds.width - padding.x * 2;
+    // if adding a word to a line extends its width beyond the max width, start new line
+    // whitespace characters delimiting lines don't contribute to line width
+   
+    const int max_width = bounds.width - padding_.x * 2;
     int prev_ch = ALLEGRO_NO_KERNING;
-    int line_width=0, line_begin=0,
-        word_width=0, word_begin=0;
+    int line_begin = 0, word_begin = 0;
+    int delimiter_width = 0, line_width = 0, word_width = 0;
 
-    for (int i=0; i < chars.size(); i++) {
-        int ch = chars[i];
-        int advance = al_get_glyph_advance(font, prev_ch, ch);
-        // if end of word
+    for (int i=0; i < chars_.size(); i++) {
+        int ch = chars_[i];
+
+        if (isspace(prev_ch)) delimiter_width = al_get_glyph_advance(font_, prev_ch, ch);
+        else word_width += al_get_glyph_advance(font_, prev_ch, ch);
+
         if (isspace(ch)) {
-            if (word_width) num_words++;
+            word_count_ += int(word_width > 0);
             // if end of line
-            if (line_width + word_width + advance > width) {
-                lines.emplace_back(line_begin, word_begin-1, line_width);
+            if (line_width + delimiter_width + word_width > max_width) {
+                lines_.emplace_back(line_begin, word_begin-1, line_width);
                 // prepare next line
-                line_width=word_width;
-                line_begin=word_begin;
-            } else line_width += word_width + advance;
+                line_width = word_width;
+                line_begin = word_begin;
+                delimiter_width = 0;
+            } else line_width += delimiter_width + word_width;
             // prepare next word
-            word_width=0;
-            word_begin=i+1;
-        } else word_width += advance;
+            word_width = 0;
+            word_begin = i+1;
+        }
         prev_ch = ch;
     }
     
-    cursor.offset = offset_from_alignment(cursor.index);
+    caret_.offset = offset_from_alignment(caret_.index);
 }
 
 int TextEditor::offset_from_alignment(int i) const {
-    assert(font);
+    assert(font_);
     if (i < 0) i += char_count();
     assert(i >= 0 && i < char_count());
 
@@ -297,13 +314,13 @@ int TextEditor::offset_from_alignment(int i) const {
         } break;
     }
     
-    assert(begin >= 0 && begin < chars.size());
-    assert(end >= 0 && end < chars.size());
-    int prev_ch = begin > line_begin(ln) ? chars[begin - 1] : ALLEGRO_NO_KERNING;
+    assert(begin >= 0 && begin < chars_.size());
+    assert(end >= 0 && end < chars_.size());
+    int prev_ch = begin > line_begin(ln) ? chars_[begin - 1] : ALLEGRO_NO_KERNING;
     for (int i = begin; i <= end; i++) {
-        int ch = chars[i];
+        int ch = chars_[i];
         if (ch < 0) continue;
-        offset += al_get_glyph_advance(font, prev_ch, ch);
+        offset += al_get_glyph_advance(font_, prev_ch, ch);
         prev_ch = ch;
     }
 
