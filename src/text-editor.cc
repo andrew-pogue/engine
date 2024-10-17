@@ -1,6 +1,6 @@
 #include <allegro5/allegro5.h>
 #include <allegro5/allegro_primitives.h>
-#include <cctype>
+#include <cmath>
 #include <iostream>
 #include "text-editor.hh"
 
@@ -8,21 +8,25 @@
 // caret is drawn at the front of the character at its index
 // the portion of the text after an insertion or deletion needs to be parsed
 //      or the line info will be wrong
+// the last character in the char array is appended and only exists so that
+//      the caret can move one past the end of the string
+
+// TODO:
+// update offset on insert and remove
+// parse account for to and from
 
 ///////////////////////////////////////////////////////////////////////////////
 /// PUBLIC API
 
-TextEditor::TextEditor(Rectangle area, const ALLEGRO_FONT *font, ALLEGRO_COLOR color, String &&string)
+TextEditor::TextEditor(Rectangle area, const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const String &str)
     : Widget(area)
-    , color(color), scroll{0.f}, spacing{0.f}
+    , color(color), scroll{0.f}, spacing{0}
     , align{Align::LEFT, Align::TOP}
-    , font_(font), padding_{0.f, 0.f}
+    , font_(font), padding_{0, 0}
     , lines_(), chars_(), caret_{0, 0}, word_count_(0)
 {
     assert(font_);
-    chars_.reserve(string.length());
-    for (int ch : string) chars_.push_back(ch);
-    parse();
+    string(str);
 }
 
 void TextEditor::font(const ALLEGRO_FONT *font) {
@@ -30,7 +34,7 @@ void TextEditor::font(const ALLEGRO_FONT *font) {
     parse();
 }
 
-void TextEditor::padding(Vector2<float> val) {
+void TextEditor::padding(Vector2<int> val) {
     bool reparse = padding_.x != val.x;
     padding_ = val;
     if (reparse) parse();
@@ -59,14 +63,14 @@ void TextEditor::render() const {
         ln++;
     }
 
+    const int caret_ln = line_number(caret_.index);
     al_hold_bitmap_drawing(true);
     while (ln < line_count() && y < max_y) {
         float x = min_x;
-        if (align.x == Align::RIGHT)
-            x = max_x - line_width(ln);
-        if (align.x == Align::CENTER_X)
-            x = max_x - line_width(ln) / 2;
-        //al_draw_filled_rectangle(x, y, x + line_width(ln), y + line_height, al_map_rgb(0,0,255));
+        if (align.x == Align::RIGHT)    x = max_x - line_width(ln);
+        if (align.x == Align::CENTER_X) x = max_x - line_width(ln) / 2;
+        if (ln == caret_ln)
+            al_draw_filled_rectangle(bounds.x, y, x + bounds.width, y + line_height, al_map_rgb(0,0,255));
         int prev_ch = ALLEGRO_NO_KERNING;
         for (int i = line_begin(ln); i <= line_end(ln); i++) {
             int ch = chars_.at(i);
@@ -129,16 +133,20 @@ int TextEditor::line_width(int ln) const {
     return lines_.at(ln).width;
 }
 
-void TextEditor::insert(int i, int ch) {
-    if (i < 0) i += chars_.size();
+bool TextEditor::insert(int i, int ch) {
+    i += char_count() * int(i < 0);
+    if (i < 0 || i > chars_.size()-1) return false;
     chars_.insert(chars_.begin() + i, ch);
     parse(line_number(i));
+    return true;
 }
 
-void TextEditor::remove(int i) {
-    if (i < 0) i += chars_.size();
+bool TextEditor::remove(int i) {
+    i += char_count() * int(i < 0);
+    if (i < 0 || i > chars_.size()-1) return false;
     chars_.erase(chars_.begin() + i);
     parse(line_number(i));
+    return true;
 }
 
 /* used for finding char index at mouse click
@@ -154,15 +162,27 @@ int find_index(float y, float x) {
 }
 */
 
-String TextEditor::to_string() const { 
-    String string;
-    for (int ch : chars_) string.append(ch);
-    return string;
+void TextEditor::string(const String &str) {
+    chars_.reserve(str.length());
+    for (int ch : str) chars_.push_back(ch);
+    chars_.push_back(0);
+    parse();
+}
+
+String TextEditor::string() const { 
+    String str;
+    for (int ch : chars_) str.append(ch);
+    str.truncate(-1);
+    return str;
 }
 
 void TextEditor::go_to(int i) {
-    if (i < 0) i += char_count();
-    if (i >= 0 && i < char_count()) caret_.index = i;
+    i += char_count() * int(i < 0);
+    if (i >= 0 && i <= char_count()) {
+        caret_.index = i;
+        caret_.offset = offset_from_alignment(caret_.index);
+        adjust_viewport();
+    }
 }
 
 // moving caret up and down needs to account for kerning and alignment
@@ -192,10 +212,39 @@ void TextEditor::go_to_line(int ln) {
         caret_.index = i;
         prev_ch = ch;
     }
+    adjust_viewport();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// PRIVATE API
+
+void TextEditor::adjust_viewport() {
+    const int ln = line_number(caret_.index);
+    const float vp_begin = viewport_begin();
+    const int begin = std::ceil(vp_begin); // first line that is fully visible
+    if (ln < begin) {
+        scroll = ln * (al_get_font_line_height(font_) + spacing);
+        return;
+    }
+
+    const float vp_end = viewport_end();
+    const int end = vp_end - 1.f; // last line that is fully visible
+
+    if (ln > end) {
+        const float vp_length = vp_end - vp_begin;
+        scroll = (ln + 1 - vp_length) * (al_get_font_line_height(font_) + spacing) - spacing;
+    }
+}
+
+float TextEditor::viewport_begin() const {
+    return scroll / (al_get_font_line_height(font_) + spacing);
+}
+
+float TextEditor::viewport_end() const {
+    const int line_height = al_get_font_line_height(font_);
+    const float viewport_height = bounds.height - padding_.y * 2;
+    return (scroll + viewport_height) / (line_height + spacing);
+}
 
 void TextEditor::handle_input(int keycode, int unichar) {
     switch(keycode) {
@@ -209,27 +258,28 @@ void TextEditor::handle_input(int keycode, int unichar) {
         } break;
     case ALLEGRO_KEY_LEFT:
         if (caret_.index > 0) {
-            caret_.index--;
-            caret_.offset = offset_from_alignment(caret_.index);
+            caret_.offset = offset_from_alignment(--caret_.index);
+            adjust_viewport();
         } break;
     case ALLEGRO_KEY_RIGHT:
-        if (caret_.index < char_count()-1) {
-            caret_.index++;
-            caret_.offset = offset_from_alignment(caret_.index);
+        if (caret_.index < char_count()) {
+            caret_.offset = offset_from_alignment(++caret_.index);
+            adjust_viewport();
         } break;
     case ALLEGRO_KEY_BACKSPACE:
         if (caret_.index > 0) {
             remove(--caret_.index);
         } break;
     case ALLEGRO_KEY_DELETE:
-        if (caret_.index >= 0 && caret_.index < char_count()-1) {
+        if (caret_.index >= 0 && caret_.index < char_count()) {
             remove(caret_.index);
         } break;
     case ALLEGRO_KEY_ENTER: {
             int ln = line_number(caret_.index);
-            printf("caret=%i ln=%i begin=%i end=%i length=%i width=%i\n",
+            printf("caret=%i ln=%i begin=%i end=%i length=%i width=%i view={%f, %f}\n",
                 caret_.index, ln, line_begin(ln), line_end(ln),
-                line_end(ln) - line_begin(ln), line_width(ln));
+                line_end(ln) - line_begin(ln), line_width(ln),
+                viewport_begin(), viewport_end());
         } break;
     //case ALLEGRO_KEY_TAB: string.append('\t'); break;
     case ALLEGRO_KEY_ESCAPE: break;
@@ -277,8 +327,11 @@ void TextEditor::parse(int from, int to) {
         }
         prev_ch = ch;
     }
+    lines_.emplace_back(line_begin, chars_.size()-1, line_width);
     
-    caret_.offset = offset_from_alignment(caret_.index);
+    int caret_ln = line_number(caret_.index);
+    if (caret_ln >= from && caret_ln <= to)
+        caret_.offset = offset_from_alignment(caret_.index);
 }
 
 int TextEditor::offset_from_alignment(int i) const {

@@ -25,24 +25,28 @@ struct TextEditor : Widget {
     // These values can be changed without needed to re-parse the text:
 
     ALLEGRO_COLOR color;
-    float scroll, spacing;
+    float scroll;
+    int spacing;
     Align align;
     
-    TextEditor(Rectangle area, const ALLEGRO_FONT *font, ALLEGRO_COLOR color, String &&string);
+    TextEditor(Rectangle area, const ALLEGRO_FONT *font, ALLEGRO_COLOR color, const String &string);
+
+    void string(const String &string);
+    String string() const;
 
     const ALLEGRO_FONT *font() const { return font_; }
     void font(const ALLEGRO_FONT *font);
 
-    Vector2<float> padding() const { return padding_; }
-    void padding(Vector2<float> val);
-    void padding(float x, float y) { padding({x, y}); }
+    Vector2<int> padding() const { return padding_; }
+    void padding(Vector2<int> val);
+    void padding(int x, int y) { padding({x, y}); }
 
     void render() const override;
     bool handle_event(const ALLEGRO_EVENT &event) override;
 
     constexpr int word_count() const noexcept { return word_count_; }
     constexpr int line_count() const noexcept { return lines_.size(); }
-    constexpr int char_count() const noexcept { return chars_.size(); }
+    constexpr int char_count() const noexcept { return chars_.size() - 1; }
     // get the index of the start of the line with the given line number
     int line_begin(int ln) const;
     // get the index of the end of the line with the given line number
@@ -52,16 +56,14 @@ struct TextEditor : Widget {
     // get the width in pixels of the line
     int line_width(int ln) const;
 
-    String to_string() const;
-
     auto cbegin() const { return chars_.cbegin(); }
     auto cend() const { return chars_.cend(); }
 
     auto begin() { return chars_.begin(); }
     auto end() { return chars_.end(); }
 
-    void insert(int i, int ch);
-    void remove(int i);
+    bool insert(int i, int ch);
+    bool remove(int i);
 
     // void append(int ch);
     // bool remove(int from, int to);
@@ -91,7 +93,7 @@ private:
     struct LineInfo { int begin, end, width; };
 
     const ALLEGRO_FONT *font_; // non-owning
-    Vector2<float> padding_;
+    Vector2<int> padding_;
     // each int represents a unicode character
     std::vector<int> chars_;
     // the begin and end of each line, needed for vertical caret movement
@@ -107,6 +109,10 @@ private:
     // the middle of the line [Align::CENTER_X], or the end of the line [Align::RIGHT]. Used for
     // vertical caret movement.
     int offset_from_alignment(int i) const;
+
+    void adjust_viewport();
+    float viewport_begin() const;
+    float viewport_end() const;
 
     // int find_index(float x, float y);
 
