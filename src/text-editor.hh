@@ -84,8 +84,8 @@ struct TextEditor : Widget {
     int at(int i) const { return chars_.at(i); }
     int &at(int i) { return chars_.at(i); }
 
-    void go_to_line(int ln);
-    void go_to(int i);
+    bool go_to_line(int ln);
+    bool go_to(int i);
 
 private:
 
@@ -101,7 +101,7 @@ private:
     Cursor caret_;
     int word_count_;
 
-    void handle_input(int keycode, int unichar);
+    void handle_input(int key, unsigned modifiers, int ch);
     void parse(int from=0, int to=-1);
     
     // Gets the width in pixels between the start of the character at the index
