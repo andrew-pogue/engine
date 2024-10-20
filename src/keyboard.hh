@@ -58,7 +58,7 @@ namespace english {
 
 } // namespace english
 
-class Keyboard {
+class KeyboardLog {
 private:
 
     std::bitset<ALLEGRO_KEY_MAX> is_pressed_, has_changed_;

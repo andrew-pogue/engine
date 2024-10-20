@@ -3,20 +3,19 @@
 #include "vector2.hh"
 #include "rectangle.hh"
 
-enum : int {
-    ANCHOR_CENTER,
-    ANCHOR_NORTH, ANCHOR_SOUTH,
-    ANCHOR_EAST,  ANCHOR_WEST,
-    ANCHOR_NORTHEAST, ANCHOR_NORTHWEST,
-    ANCHOR_SOUTHEAST, ANCHOR_SOUTHWEST,
+enum class Anchor {
+    NORTH, SOUTH,
+    EAST,  WEST,
+    NORTHEAST, NORTHWEST,
+    SOUTHEAST, SOUTHWEST,
+    CENTER,
 };
 
-enum : int {
-    ALIGN_LEFT,
-	ALIGN_TOP = ALIGN_LEFT,
-	ALIGN_RIGHT,
-	ALIGN_BOTTOM = ALIGN_RIGHT,
-	ALIGN_CENTER,
+struct Align {
+    enum Horizontal { LEFT, RIGHT, CENTER_X };
+    enum Vertical { TOP, BOTTOM, CENTER_Y };
+    Horizontal x = LEFT;
+    Vertical y = TOP;
 };
 
 struct GridLayout;
@@ -29,9 +28,9 @@ struct Layout : Rectangle {
     void fill_vertical(std::derived_from<Rectangle> auto &...items) const;
     float row(float spacing, std::derived_from<Rectangle> auto &...items) const;
     float column(float spacing, std::derived_from<Rectangle> auto &...items) const;
-    void align_horizontal(char value, std::derived_from<Rectangle> auto &...items) const;
-    void align_vertical(char value, std::derived_from<Rectangle> auto &...items) const;
-    void align(char xalign, char yalign, std::derived_from<Rectangle> auto &...items) const;
+    void align(Align::Horizontal value, std::derived_from<Rectangle> auto &...items) const;
+    void align(Align::Vertical value, std::derived_from<Rectangle> auto &...items) const;
+    void align(Align value, std::derived_from<Rectangle> auto &...items) const;
     void anchor(char value, std::derived_from<Rectangle> auto &...items) const;
         
 }; // struct Layout

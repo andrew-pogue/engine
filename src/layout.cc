@@ -40,42 +40,41 @@ float Layout::column(float spacing, std::derived_from<Rectangle> auto &...items)
     return shift - spacing;
 }
 
-void Layout::align_horizontal(char value, std::derived_from<Rectangle> auto &...items) const {
+void Layout::align(Align::Horizontal value, std::derived_from<Rectangle> auto &...items) const {
     for (Rectangle *item : { &items... }) {
         switch (value) {
-        case ALIGN_LEFT:   break;
-        case ALIGN_CENTER: item->x = x + (width - item->width) / 2.0f; break;
-        case ALIGN_RIGHT:  item->x = x +  width - item->width; break;
+        case Align::LEFT:       break;
+        case Align::CENTER_X:   item->x = x + (width - item->width) / 2.0f; break;
+        case Align::RIGHT:      item->x = x +  width - item->width; break;
         }
     }
 }
 
-void Layout::align_vertical(char value, std::derived_from<Rectangle> auto &...items) const {
+void Layout::align(Align::Vertical value, std::derived_from<Rectangle> auto &...items) const {
     for (Rectangle *item : { &items... }) {
         switch (value) {
-        case ALIGN_TOP:    break;
-        case ALIGN_CENTER: item->y = y + (height - item->height) / 2.0f; break;
-        case ALIGN_BOTTOM: item->y = y +  height - item->height; break;
+        case Align::TOP:        break;
+        case Align::CENTER_Y:   item->y = y + (height - item->height) / 2.0f; break;
+        case Align::BOTTOM:     item->y = y +  height - item->height; break;
         }
     }
 }
 
-void Layout::align(char xalign, char yalign, std::derived_from<Rectangle> auto &...items) const {
-    align_horizontal(xalign, items...);
-    align_vertical(yalign, items...);
+void Layout::align(Align value, std::derived_from<Rectangle> auto &...items) const {
+    align(value.x, items...); align(value.y, items...);
 }
 
 void Layout::anchor(char value, std::derived_from<Rectangle> auto &...items) const {
     switch (value) {
-    case ANCHOR_NORTH:     align(ALIGN_CENTER, ALIGN_TOP,    items...); break;
-    case ANCHOR_NORTHEAST: align(ALIGN_RIGHT,  ALIGN_TOP,    items...); break; 
-    case ANCHOR_NORTHWEST: align(ALIGN_LEFT,   ALIGN_TOP,    items...); break;
-    case ANCHOR_SOUTH:     align(ALIGN_CENTER, ALIGN_BOTTOM, items...); break;
-    case ANCHOR_SOUTHEAST: align(ALIGN_RIGHT,  ALIGN_BOTTOM, items...); break;
-    case ANCHOR_SOUTHWEST: align(ALIGN_LEFT,   ALIGN_BOTTOM, items...); break;
-    case ANCHOR_WEST:      align(ALIGN_LEFT,   ALIGN_CENTER, items...); break;
-    case ANCHOR_EAST:      align(ALIGN_RIGHT,  ALIGN_CENTER, items...); break;
-    case ANCHOR_CENTER:    align(ALIGN_CENTER, ALIGN_CENTER, items...); break;
+    case Anchor::NORTH:     align(Align::CENTER_X,  Align::TOP,         items...); break;
+    case Anchor::NORTHEAST: align(Align::RIGHT,     Align::TOP,         items...); break; 
+    case Anchor::NORTHWEST: align(Align::LEFT,      Align::TOP,         items...); break;
+    case Anchor::SOUTH:     align(Align::CENTER_X,  Align::BOTTOM,      items...); break;
+    case Anchor::SOUTHEAST: align(Align::RIGHT,     Align::BOTTOM,      items...); break;
+    case Anchor::SOUTHWEST: align(Align::LEFT,      Align::BOTTOM,      items...); break;
+    case Anchor::WEST:      align(Align::LEFT,      Align::CENTER_Y,    items...); break;
+    case Anchor::EAST:      align(Align::RIGHT,     Align::CENTER_Y,    items...); break;
+    case Anchor::CENTER:    align(Align::CENTER_X,  Align::CENTER_Y,    items...); break;
     }
 }
 
