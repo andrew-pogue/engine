@@ -15,6 +15,14 @@
 // update offset on insert and remove
 // parse account for to and from
 
+namespace {
+
+    int min(int a, int b) { return a < b ? a : b; }
+    int max(int a, int b) { return a > b ? a : b; }
+    int clamp(int val, int low, int high) { return min(max(val, low), high); }
+
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// PUBLIC API
 
@@ -47,47 +55,37 @@ void TextEditor::render() const {
     al_get_clipping_rectangle(&prev_clip_x, &prev_clip_y, &prev_clip_w, &prev_clip_h);
     const bool was_drawing_held = al_is_bitmap_drawing_held();
 
+    const int line_height = al_get_font_line_height(font_);
     const float
         min_x = bounds.x + padding_.x,
         min_y = bounds.y + padding_.y,
         max_x = bounds.x + bounds.width - padding_.x,
         max_y = bounds.y + bounds.height - padding_.y;
-    //al_draw_filled_rectangle(min_x, min_y, max_x, max_y, al_map_rgb(0,0,255));
     al_set_clipping_rectangle(min_x-2.f, min_y-2.f, max_x-min_x+4.f, max_y-min_y+4.f);
-
-    const int line_height = al_get_font_line_height(font_);
-    int ln = 0;
-    float y = min_y - scroll;
-
-    while (ln < line_count() && y < min_y - line_height) {
-        y += line_height + spacing;
-        ln++;
-    }
+    al_hold_bitmap_drawing(true);
 
     const int caret_ln = line_number(caret_.index);
-    al_hold_bitmap_drawing(true);
-    while (ln < line_count() && y < max_y) {
+    const float caret_y = min_y + caret_ln * (line_height + spacing) - scroll;
+    al_draw_filled_rectangle(min_x, caret_y, max_x, caret_y + line_height, al_map_rgb(0,0,255));
+
+    const int begin = clamp(viewport_begin(), 0, line_count()-1),
+          end = clamp(viewport_end(), 0, line_count()-1);
+    for (int ln = begin; ln <= end; ln++) {
+        const float y = min_y + ln * (line_height + spacing) - scroll;
         float x = min_x;
         if (align.x == Align::RIGHT)    x = max_x - line_width(ln);
         if (align.x == Align::CENTER_X) x = max_x - line_width(ln) / 2;
-        if (ln == caret_ln)
-            al_draw_filled_rectangle(bounds.x, y, x + bounds.width, y + line_height, al_map_rgb(0,0,255));
         int prev_ch = ALLEGRO_NO_KERNING;
         for (int i = line_begin(ln); i <= line_end(ln); i++) {
             int ch = chars_.at(i);
             x += al_get_glyph_advance(font_, prev_ch, ch);
             al_draw_glyph(font_, color, x, y, ch);
-            prev_ch = ch;
-            if (i == caret_.index) {
+            if (i == caret_.index)
                 al_draw_filled_rectangle(
-                    x - 2.f, y - 2.f,
-                    x + 2.f, y + line_height + 2.f,
-                    al_map_rgb(255,255,255)
-                );
-            }
+                    x - 2.f, y - 2.f, x + 2.f, y + line_height + 2.f,
+                    al_map_rgb(255,255,255));
+            prev_ch = ch;
         }
-        y += line_height + spacing;
-        ln++;
     }
 
     al_hold_bitmap_drawing(was_drawing_held);
@@ -117,9 +115,7 @@ int TextEditor::line_begin(int ln) const {
 int TextEditor::line_end(int ln) const {
     if (ln < 0) ln += lines_.size();
     int end = lines_.at(ln).end;
-    bool success = end >= 0 && end <= char_count();
-    if (!success) printf("end=%i\n", end);
-    assert(success);
+    assert(end >= 0 && end <= char_count());
     return end;
 }
 
@@ -186,7 +182,7 @@ bool TextEditor::go_to(int i) {
     if (i < 0 && i > char_count()) return false;
     caret_.index = i;
     caret_.offset = offset_from_alignment(caret_.index);
-    adjust_viewport();
+    viewport_update();
     return true;
 }
 
@@ -218,14 +214,14 @@ bool TextEditor::go_to_line(int ln) {
         prev_ch = ch;
     }
 
-    adjust_viewport();
+    viewport_update();
     return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 /// PRIVATE API
 
-void TextEditor::adjust_viewport() {
+void TextEditor::viewport_update() {
     const int ln = line_number(caret_.index);
     const float vp_begin = viewport_begin();
     const int begin = std::ceil(vp_begin); // first line that is fully visible
@@ -243,10 +239,12 @@ void TextEditor::adjust_viewport() {
     }
 }
 
+// can be negative (value of -8 means the viewport starts 8 lines before line 0)
 float TextEditor::viewport_begin() const {
     return scroll / (al_get_font_line_height(font_) + spacing);
 }
 
+// can be greater than line count
 float TextEditor::viewport_end() const {
     const int line_height = al_get_font_line_height(font_);
     const float viewport_height = bounds.height - padding_.y * 2;
@@ -296,13 +294,7 @@ void TextEditor::handle_input(int key, unsigned modifiers, int ch) {
             bool success = remove(caret_.index);
             assert(success);
         } break;
-    case ALLEGRO_KEY_ENTER: {
-            int ln = line_number(caret_.index);
-            printf("caret=%i/%i ln=%i begin=%i end=%i length=%i width=%i view={%f, %f}\n",
-                caret_.index, char_count(), ln, line_begin(ln), line_end(ln),
-                line_end(ln) - line_begin(ln), line_width(ln),
-                viewport_begin(), viewport_end());
-        } break;
+    //case ALLEGRO_KEY_ENTER: insert(caret_.index++, '\n'); break;
     //case ALLEGRO_KEY_TAB: string.append('\t'); break;
     case ALLEGRO_KEY_HOME: {
             bool success = go_to(line_begin(line_number(caret_.index)));
@@ -365,6 +357,13 @@ void TextEditor::parse(int from, int to) {
                 line_begin = word_begin;
                 delimiter_width = 0;
             } else line_width += delimiter_width + word_width;
+            if (ch == '\n') {
+                lines_.emplace_back(line_begin, i, line_width);
+                // prepare next line
+                line_width = 0;
+                line_begin = i+1;
+                delimiter_width = 0;
+            }
             // prepare next word
             word_width = 0;
             word_begin = i+1;

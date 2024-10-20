@@ -110,7 +110,7 @@ private:
     // vertical caret movement.
     int offset_from_alignment(int i) const;
 
-    void adjust_viewport();
+    void viewport_update();
     float viewport_begin() const;
     float viewport_end() const;
 
