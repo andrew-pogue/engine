@@ -19,6 +19,7 @@
 // copy and paste
 // search and replace
 // undo and redo
+// customizable keybindings / keymaps
 
 struct TextEditor : Widget {
 
@@ -87,6 +88,12 @@ struct TextEditor : Widget {
     bool go_to_line(int ln);
     bool go_to(int i);
 
+    int find_next(int ch) const;
+    int find_last(int ch) const;
+    int find_word_start(int index) const;
+    int find_word_end(int index) const;
+    int find_index(float x, float y) const;
+
 private:
 
     struct Cursor { int index, offset; };
@@ -101,7 +108,11 @@ private:
     Cursor caret_;
     int word_count_;
 
-    void handle_input(int key, unsigned modifiers, int ch);
+    // handle keyboard input with no modifier key pressed
+    void handle_input(int key, int ch);
+    // handle keyboard input with the control modifier key pressed
+    void handle_input_ctrl(int key, int ch);
+
     void parse(int from=0, int to=-1);
     
     // Gets the width in pixels between the start of the character at the index
@@ -113,8 +124,6 @@ private:
     void viewport_update();
     float viewport_begin() const;
     float viewport_end() const;
-
-    // int find_index(float x, float y);
 
 };
 

@@ -96,8 +96,14 @@ bool TextEditor::handle_event(const ALLEGRO_EVENT &event) {
     bool is_handled = false;
     switch(event.type) {
     case ALLEGRO_EVENT_KEY_CHAR:
-        handle_input(event.keyboard.keycode, event.keyboard.modifiers, event.keyboard.unichar);
-        is_handled = true; break;
+        switch (event.keyboard.modifiers) {
+        case ALLEGRO_KEYMOD_CTRL:
+            handle_input_ctrl(event.keyboard.keycode, event.keyboard.unichar);
+            break;
+        default:
+            handle_input(event.keyboard.keycode, event.keyboard.unichar);
+            break;
+        } is_handled = true; break;
     case ALLEGRO_EVENT_MOUSE_AXES:
         scroll += float(20 * event.mouse.dz);
         is_handled = true; break;
@@ -134,19 +140,19 @@ int TextEditor::line_width(int ln) const {
 }
 
 bool TextEditor::insert(int i, int ch) {
+    if (ch < 0) return false; // invalid character check
     i += char_count() * int(i < 0);
     if (i < 0 || i > char_count()) return false;
     chars_.insert(chars_.begin() + i, ch);
-    parse(line_number(i));
+    parse(line_number(i), line_number(find_next('\n')));
     return true;
 }
 
 bool TextEditor::remove(int i) {
     i += char_count() * int(i < 0);
     if (i < 0 || i >= char_count()) return false;
-    int ln = line_number(i);
     chars_.erase(chars_.begin() + i);
-    parse(ln-1);
+    parse(line_number(i), line_number(find_next('\n')));
     return true;
 }
 
@@ -194,7 +200,6 @@ bool TextEditor::go_to_line(int ln) {
 
     int begin = line_begin(ln),
         end = line_end(ln);
-
     int offset = caret_.offset;
     if (align.x == Align::RIGHT) offset = line_width(ln) + offset;
     else if (align.x == Align::CENTER_X) offset = line_width(ln) / 2 + offset;
@@ -218,9 +223,34 @@ bool TextEditor::go_to_line(int ln) {
     return true;
 }
 
+int TextEditor::find_last(int ch) const {
+    int index = caret_.index;
+    while (index > 0 && chars_[index] != ch) index--;
+    return index;
+}
+
+int TextEditor::find_next(int ch) const {
+    int index = caret_.index;
+    while (index < char_count() && chars_[index] != ch) index++;
+    return index;
+}
+
+int TextEditor::find_word_start(int index) const {
+    while (index > 0 && isspace(chars_[index])) index--;
+    while (index > 0 && !isspace(chars_[index-1])) index--;
+    return index;
+}
+
+int TextEditor::find_word_end(int index) const {
+    while (index < char_count() && isspace(chars_[index])) index++;
+    while (index < char_count() && !isspace(chars_[index])) index++;
+    return index;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// PRIVATE API
 
+// updates the viewport so the cursor is in view
 void TextEditor::viewport_update() {
     const int ln = line_number(caret_.index);
     const float vp_begin = viewport_begin();
@@ -251,7 +281,7 @@ float TextEditor::viewport_end() const {
     return (scroll + viewport_height) / (line_height + spacing);
 }
 
-void TextEditor::handle_input(int key, unsigned modifiers, int ch) {
+void TextEditor::handle_input(int key, int ch) {
     switch(key) {
     case ALLEGRO_KEY_UP: {
             int ln = line_number(caret_.index);
@@ -263,25 +293,12 @@ void TextEditor::handle_input(int key, unsigned modifiers, int ch) {
         } break;
     case ALLEGRO_KEY_LEFT:
         if (caret_.index > 0) {
-            int to = caret_.index - 1;
-            if (modifiers & ALLEGRO_KEYMOD_CTRL) {
-                // jump one word to the left
-                while (to > 0 && isspace(chars_[to])) to--;
-                while (to > 0 && !isspace(chars_[to-1])) to--;
-                //to += int(isspace(chars_[to]) == true);
-            }
-            bool success = go_to(to);
+            bool success = go_to(caret_.index - 1);
             assert(success);
         } break;
     case ALLEGRO_KEY_RIGHT:
         if (caret_.index < char_count()) {
-            int to = caret_.index + 1;
-            if (modifiers & ALLEGRO_KEYMOD_CTRL) {
-                // jump one word to the right
-                while (to < char_count() && isspace(chars_[to])) to++;
-                while (to < char_count() && !isspace(chars_[to])) to++;
-            }
-            bool success = go_to(to);
+            bool success = go_to(caret_.index + 1);
             assert(success);
         } break;
     case ALLEGRO_KEY_BACKSPACE:
@@ -294,8 +311,6 @@ void TextEditor::handle_input(int key, unsigned modifiers, int ch) {
             bool success = remove(caret_.index);
             assert(success);
         } break;
-    //case ALLEGRO_KEY_ENTER: insert(caret_.index++, '\n'); break;
-    //case ALLEGRO_KEY_TAB: string.append('\t'); break;
     case ALLEGRO_KEY_HOME: {
             bool success = go_to(line_begin(line_number(caret_.index)));
             assert(success);
@@ -318,10 +333,21 @@ void TextEditor::handle_input(int key, unsigned modifiers, int ch) {
             bool success = go_to_line(to);
             assert(success);
         } break;
-    case ALLEGRO_KEY_ESCAPE: break;
-    default:
-        if (ch > 0) {
-            insert(caret_.index++, ch);
+    default: insert(caret_.index++, ch); break;
+    }
+}
+
+void TextEditor::handle_input_ctrl(int key, int ch) {
+    switch (key) {
+    case ALLEGRO_KEY_LEFT:
+        if (caret_.index > 0) {
+            bool success = go_to(find_word_start(caret_.index - 1));
+            assert(success);
+        }break;
+    case ALLEGRO_KEY_RIGHT:
+        if (caret_.index < char_count()) {
+            bool success = go_to(find_word_end(caret_.index + 1));
+            assert(success);
         } break;
     }
 }
@@ -329,9 +355,10 @@ void TextEditor::handle_input(int key, unsigned modifiers, int ch) {
 // parses the character array to get metadata about lines; their width, where they begin and end
 void TextEditor::parse(int from, int to) {
     assert(font_); if (!font_) return;
+    // TODO: what if empty? if (is_empty()) return; chars_ vs lines_?
     from += line_count() * (from < 0);
     to += line_count() * (to < 0);
-    lines_.clear();
+    lines_.erase(lines_.begin() + from, lines_.end());
 
     // if adding a word to a line extends its width beyond the max width, start new line
     // whitespace characters delimiting lines don't contribute to line width
@@ -341,7 +368,7 @@ void TextEditor::parse(int from, int to) {
     int line_begin = 0, word_begin = 0;
     int delimiter_width = 0, line_width = 0, word_width = 0;
 
-    for (int i=0; i <= char_count(); i++) {
+    for (int i = this->line_begin(from); i <= char_count(); i++) {
         int ch = chars_[i];
 
         if (isspace(prev_ch)) delimiter_width = al_get_glyph_advance(font_, prev_ch, ch);
