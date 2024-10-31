@@ -22,10 +22,13 @@ struct Vector2 {
 
     std::ostream& operator<<(std::ostream& out) const { return out << '{' << x << ',' << y << '}'; }
 
+    bool operator==(const Vector2<T> &other) const { return x == other.x && y == other.y; }
+    bool operator!=(const Vector2<T> &other) const { return x != other.x || y != other.y; }
+
 };
 
-using Vector2d = Vector2<double>;
-using Vector2f = Vector2<float>;
-using Vector2i = Vector2<int>;
-using Vector2u = Vector2<unsigned>;
+using Vec2d = Vector2<double>;
+using Vec2f = Vector2<float>;
+using Vec2i = Vector2<int>;
+using Vec2u = Vector2<unsigned>;
 

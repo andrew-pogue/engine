@@ -20,6 +20,7 @@ target_link_libraries (
     allegro_ttf
     allegro_primitives
     allegro_color
+    allegro_image
 )
 
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")

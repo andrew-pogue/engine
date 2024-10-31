@@ -35,7 +35,7 @@ struct Rectangle {
         );
     }
 
-    void draw_outline_rounded(ALLEGRO_COLOR color, float thickness, float rx, float ry) const {
+    void draw_rounded_outline(ALLEGRO_COLOR color, float thickness, float rx, float ry) const {
         al_draw_rounded_rectangle(
             x, y,
             x + width, y + height,

@@ -1,15 +1,117 @@
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_color.h>
 #include <allegro5/allegro_font.h>
+#include <allegro5/allegro_image.h>
 #include <allegro5/allegro_ttf.h>
 #include <allegro5/allegro_primitives.h>
+#include <cmath>
 #include <iostream>
+#include <memory>
 
+#include "grid2.hh"
 #include "layout.hh"
+#include "rectangle.hh"
 #include "text-effect.hh"
-#include "text-editor.hh"
+#include "vector2.hh"
 
+enum Tile : unsigned {
+    TILE_GRASSLAND,
+    TILE_MOUNTAIN,
+    TILE_FOREST_PINE,
+    TILE_FOREST_DECIDUOUS,
+    TILE_HILL,
+    TILE_VILLAGE,
+    TILE_RIVER,
+    TILE_PLAYER
+};
 const int DISPLAY_WIDTH = 640, DISPLAY_HEIGHT = 480;
+
+ALLEGRO_DISPLAY *create_display() {
+    al_set_new_window_title("New Colony");
+    return al_create_display(DISPLAY_WIDTH, DISPLAY_HEIGHT);
+}
+
+ALLEGRO_BITMAP *load_tileset() {
+    return al_load_bitmap("assets/tileset/urizen_onebit.png");
+}
+
+Grid2<Tile> load_terrain() {
+    Grid2<Tile> terrain(20, 20, TILE_GRASSLAND);
+    for (int i = 0; i < 20; i++) {
+        terrain.at(i,0) = TILE_MOUNTAIN;
+        terrain.at(i,19) = TILE_MOUNTAIN;
+    }
+    for (int j = 0; j < 20; j++) {
+        terrain.at(0,j) = TILE_MOUNTAIN;
+        terrain.at(19,j) = TILE_MOUNTAIN;
+        terrain.at(12,j) = TILE_RIVER;
+    }
+    terrain.at(1,1) = TILE_HILL;
+    terrain.at(2,1) = TILE_HILL;
+    terrain.at(1,2) = TILE_HILL;
+    terrain.at(10,10) = TILE_FOREST_PINE;
+    terrain.at(5,11) = TILE_FOREST_PINE;
+    terrain.at(13,5) = TILE_FOREST_PINE;
+    terrain.at(13,9) = TILE_VILLAGE;
+    return terrain;
+}
+
+// NOTE: creating a font before creating a display will cause issues with allegro
+// size is ignored if the font is a bitmap font
+ALLEGRO_FONT *load_font(const char *name, const char *style, int size=0) {
+    std::string path = "assets/font/";
+    path += name; path += '-'; path += style; path += ".ttf";
+    return al_load_font(path.data(), size, 0);
+}
+
+void draw_tile(ALLEGRO_BITMAP *tileset, Tile tile, float x, float y, float width, float height) {
+    int column = 0, row = 0;
+    const int tile_size = 12;
+    switch (tile) {
+    case TILE_FOREST_DECIDUOUS: column = 1; row = 34; break;
+    case TILE_FOREST_PINE: column = 2; row = 34; break;
+    case TILE_GRASSLAND: column = 12; row = 34; break;
+    case TILE_HILL: column = 13; row = 34; break;
+    case TILE_MOUNTAIN: column = 15; row = 34; break;
+    case TILE_RIVER: column = 0; row = 12; break;
+    case TILE_VILLAGE: column = 17; row = 33; break;
+    case TILE_PLAYER: column = 26; row = 40; break;
+    }
+    al_draw_scaled_bitmap(tileset,
+        column * (tile_size+1), row * (tile_size+1), tile_size+1, tile_size+1,
+        x, y, width, height, 0);
+}
+
+void draw_tile(ALLEGRO_BITMAP *tileset, Tile tile, Rectangle area) {
+    draw_tile(tileset, tile, area.x, area.y, area.width, area.height);
+}
+
+void render(const Grid2<Tile> &terrain, ALLEGRO_BITMAP *tileset,
+    Rectangle viewport, Vector2<float> focus, float tile_size, bool draw_grid = false
+) {
+    int prev_clip_x=0, prev_clip_y=0, prev_clip_w=0, prev_clip_h=0;
+    al_get_clipping_rectangle(&prev_clip_x, &prev_clip_y, &prev_clip_w, &prev_clip_h);
+    al_set_clipping_rectangle(viewport.x, viewport.y, viewport.width, viewport.height);
+    // width and height of the viewport in tiles
+    const float width  = viewport.width  / tile_size,
+                height = viewport.height / tile_size;
+    // tile position of the top left corner of the viewport
+    const Vector2<float> origin{ focus.x - width / 2.f, focus.y + height / 2.f };
+    // all the tiles that are at least partially visible
+    const Vector2<int> min{ int(origin.x), int(origin.y - height) },
+                       max{ int(origin.x + width), int(origin.y) };
+    for (int x = min.x; x <= max.x; x++) {
+        for (int y = min.y; y <= max.y; y++) {
+            if (!terrain.contains(x, y)) continue;
+            Rectangle area{ viewport.x + (float(x) - origin.x)       * tile_size,
+                            viewport.y + (origin.y - float(y) - 1.f) * tile_size,
+                            tile_size, tile_size };
+            draw_tile(tileset, terrain.at(x, y), area);
+            if (draw_grid) area.draw_outline(al_color_name("grey"), -1);
+        }
+    }
+    al_set_clipping_rectangle(prev_clip_x, prev_clip_y, prev_clip_w, prev_clip_h);
+}
 
 void must_init(bool test, const char *error_message) {
     if (test) return;
@@ -17,21 +119,8 @@ void must_init(bool test, const char *error_message) {
     exit(1);
 }
 
-ALLEGRO_FONT *load_font(int argc, char **argv) {
-    const char *name = (argc > 1) ? argv[1] : "PressStart2P";
-    const char *style = (argc > 2) ? argv[2] : "Regular";
-    int size = (argc > 3) ? std::stoi(argv[3]) : 16;
-    std::cout << "font: " << name << ' ' << style << ' ' << size << '\n';
-    std::string path = "assets/font/";
-    path += name;
-    path += '-';
-    path += style;
-    path += ".ttf";
-    return al_load_ttf_font(path.data(), size, 0);
-}
-
 int main(int argc, char **argv) {
-    (void)argc; (void)argv; // prevent unused variable compiler warning
+    (void)argc; (void)argv;
     
     must_init(al_init(), "Failed to initialize allegro.");
     must_init(al_install_keyboard(), "Failed to install keyboard driver.");
@@ -39,9 +128,9 @@ int main(int argc, char **argv) {
     must_init(al_init_font_addon(), "Failed to initialize font addon.");
     must_init(al_init_ttf_addon(), "Failed to initialize ttf addon.");
     must_init(al_init_primitives_addon(), "Failed to initialize primitives addon.");
+    must_init(al_init_image_addon(), "Failed to initialize image addon.");
 
-    al_set_new_window_title("Hello World");
-    ALLEGRO_DISPLAY *display = al_create_display(DISPLAY_WIDTH, DISPLAY_HEIGHT); 
+    ALLEGRO_DISPLAY *display = create_display();
     must_init(display, "Failed to create display.");
 
     ALLEGRO_EVENT_QUEUE *event_queue = al_create_event_queue();
@@ -50,35 +139,64 @@ int main(int argc, char **argv) {
     al_register_event_source(event_queue, al_get_keyboard_event_source());
     al_register_event_source(event_queue, al_get_mouse_event_source());
 
-    const char *example_text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam sit amet mauris quis tortor consequat maximus a sit amet est. Aliquam ullamcorper lorem eu nunc ultrices sollicitudin. Quisque est nunc, scelerisque pellentesque luctus at, ultricies in lorem. Nam malesuada commodo suscipit. Donec rhoncus, ipsum a condimentum gravida, mauris mauris facilisis magna, id interdum metus felis eget libero. Quisque condimentum risus ut elit consequat semper. Mauris ultrices gravida nibh, a sollicitudin lorem iaculis sed. Integer fringilla accumsan lorem, a rutrum orci blandit sit amet. Donec ultrices libero a ante accumsan, vel semper orci posuere. Curabitur eget urna imperdiet, vulputate neque dapibus, pellentesque nisl. Ut felis mi, ultrices non dui nec, rhoncus efficitur est.";
+    ALLEGRO_BITMAP *tileset = load_tileset();
+    must_init(tileset, "Failed to load tileset.");
+    const float tile_size = 12.f;
 
-    // NOTE: create a display before loading a font or allegro will be bugged
-    ALLEGRO_FONT *font = load_font(argc, argv);
+    ALLEGRO_FONT *font = load_font("PressStart2P", "Regular", 16);
     must_init(font, "Failed to load font.");
 
-    GridLayout window({0.f, 0.f, float(DISPLAY_WIDTH), float(DISPLAY_HEIGHT)}, 6, 4, {20.f, 20.f});
-    auto title = window.area(1, 0, 4, 1);
-    TextEditor body(window.area(1, 1, 4, 2), font, al_color_name("snow"), example_text);
-    body.padding(8.f, 8.f);
-    
+    Grid2<Tile> terrain = load_terrain();
+    GridLayout window{
+        { 0.f, 0.f, float(al_get_display_width(display)), float(al_get_display_height(display)) },
+        6, 6, {4.f, 4.f}};
+    Rectangle viewport = window.area(1,1,4,4);
+    Rectangle title = window.area(1,0,4,1);
+
     ALLEGRO_EVENT event;
     bool play = true;
     double time_current = al_get_time(), time_prior = time_current;
     // double lag = 0.0, step_size = 1.0 / 60.0;
 
+    Vec2i player_pos = {9, 9};
+    float scale = 3.0f;
+
     /// MAIN LOOP
+    printf("PLAY\n");
     while (play) {
         double time_elapsed = time_current - time_prior;
 
         /// HANDLE EVENTS
         while (al_get_next_event(event_queue, &event)) {
-            body.handle_event(event);
+            //body.handle_event(event);
             switch (event.type) {
             case ALLEGRO_EVENT_KEY_DOWN:
                 play = event.keyboard.keycode != ALLEGRO_KEY_ESCAPE;
                 break;
             case ALLEGRO_EVENT_DISPLAY_CLOSE:
                 play = false;
+                break;
+            case ALLEGRO_EVENT_KEY_CHAR:
+                switch (event.keyboard.keycode) {
+                case ALLEGRO_KEY_LEFT:
+                    player_pos.x--;
+                    player_pos.x += int(player_pos.x < 0) * terrain.width;
+                    break;
+                case ALLEGRO_KEY_RIGHT:
+                    player_pos.x++;
+                    player_pos.x %= terrain.width;
+                    break;
+                case ALLEGRO_KEY_UP:
+                    player_pos.y++;
+                    player_pos.y %= terrain.height;
+                    break;
+                case ALLEGRO_KEY_DOWN:
+                    player_pos.y--;
+                    player_pos.y += int(player_pos.y < 0) * terrain.height;
+                    break;
+                } break;
+            case ALLEGRO_EVENT_MOUSE_AXES:
+                scale += event.mouse.dz * 0.1f;
                 break;
             /*
             case ALLEGRO_EVENT_DISPLAY_RESIZE:
@@ -99,25 +217,31 @@ int main(int argc, char **argv) {
         /// FIXED UPDATE
         // for (lag += dt; lag >= step_size; lag -= step_size) fixed_update();
 
+        Tile temp = terrain.at(player_pos.x, player_pos.y);
+        terrain.at(player_pos.x, player_pos.y) = TILE_PLAYER;
+
         /// RENDER
         al_clear_to_color(al_map_rgb(0,0,0));
-        title.draw_outline(al_color_name("grey"), 2.f);
-        body.bounds.draw_outline(al_color_name("grey"), 2.f);
         draw_textbox_with_effects(
-            title, {Align::CENTER_X, Align::CENTER_Y}, 2.f, 0.f, font, al_color_name("snow"), "HELLO WORLD!",
+            title, {Align::CENTER_X, Align::CENTER_Y}, 2.f, 0.f, font, al_color_name("snow"), "Hello, World!",
             WavyTextEffect(100.f,8.f,time_current*75.0),
-            RainbowTextEffect(time_current*100.f));
-        body.render();
+            RainbowTextEffect(time_current*100.0));
+        render(terrain, tileset, viewport, { player_pos.x + 0.5f, player_pos.y + 0.5f }, tile_size * scale, true);
+        viewport.draw_outline(al_color_name("snow"), -1);
         al_flip_display();
+
+        terrain.at(player_pos.x, player_pos.y) = temp;
 
         time_prior = time_current;
         time_current = al_get_time();
     }
 
     al_destroy_font(font);
+    al_destroy_bitmap(tileset);
     al_destroy_event_queue(event_queue);
     al_destroy_display(display);
 
+    printf("EXIT\n");
     return 0;
 }
 
