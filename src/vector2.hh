@@ -14,11 +14,11 @@ struct Vector2 {
     void operator*=(T value) { x *= value; y *= value; }
     void operator/=(T value) { x /= value; y /= value; }
 
-    Vector2<T> &&operator+(const Vector2<T> &coord) const { return { x + coord.x, y + coord.y }; }
-    Vector2<T> &&operator-(const Vector2<T> &coord) const { return { x - coord.x, y - coord.y }; }
+    Vector2<T> operator+(const Vector2<T> &coord) const { return { x + coord.x, y + coord.y }; }
+    Vector2<T> operator-(const Vector2<T> &coord) const { return { x - coord.x, y - coord.y }; }
 
-    Vector2<T> &&operator/(T value) const { return { x / value, y / value }; }
-    Vector2<T> &&operator*(T value) const { return { x * value, y * value }; }
+    Vector2<T> operator/(T value) const { return { x / value, y / value }; }
+    Vector2<T> operator*(T value) const { return { x * value, y * value }; }
 
     std::ostream& operator<<(std::ostream& out) const { return out << '{' << x << ',' << y << '}'; }
 
