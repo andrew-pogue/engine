@@ -5,12 +5,13 @@
 #include <allegro5/allegro_ttf.h>
 #include <allegro5/allegro_primitives.h>
 #include <cmath>
-#include <iostream>
 #include <memory>
 
+#include "actor.hh"
+#include "context.hh"
 #include "grid2.hh"
+#include "keyboard.hh"
 #include "layout.hh"
-#include "move.hh"
 #include "rectangle.hh"
 #include "text-effect.hh"
 #include "vector2.hh"
@@ -158,55 +159,26 @@ int main(int argc, char **argv) {
     Rectangle viewport = window.area(1,1,4,4);
     Rectangle title = window.area(1,0,4,1);
 
+    Actor player{{9.5f, 9.5f}};
+    PlayerContext context(display, &player);
+    float scale = 3.0f;
+
     ALLEGRO_EVENT event;
     bool play = true;
     double time_current = al_get_time(), time_prior = time_current;
     double lag = 0.0, step_size = 1.0 / 60.0;
 
-    Vector2<float> player_pos = {9.5f, 9.5f};
-    MoveComponent move;
-    float scale = 3.0f;
-
-    /// MAIN LOOP
-    //printf("PLAY\n");
+    /// GAME LOOP /////////////////////////////////////////////////////////////////////
     while (play) {
         double time_elapsed = time_current - time_prior;
 
         /// HANDLE EVENTS
         while (al_get_next_event(event_queue, &event)) {
-            //body.handle_event(event);
+            context.handle_event(event);
             switch (event.type) {
-            case ALLEGRO_EVENT_KEY_DOWN:
-                play = event.keyboard.keycode != ALLEGRO_KEY_ESCAPE;
-                break;
             case ALLEGRO_EVENT_DISPLAY_CLOSE:
                 play = false;
                 break;
-            case ALLEGRO_EVENT_KEY_CHAR:
-                switch (event.keyboard.keycode) {
-                case ALLEGRO_KEY_LEFT:
-                    if (!move.active()) {
-                        float x = player_pos.x - 1.f;
-                        x += float(x < 0) * terrain.width;
-                        move.activate(player_pos, {x, player_pos.y}, 10);
-                    } break;
-                case ALLEGRO_KEY_RIGHT:
-                    if (!move.active()) {
-                        float x = float(int(player_pos.x + 1) % terrain.width) + 0.5f;
-                        move.activate(player_pos, {x, player_pos.y}, 10);
-                    } break;
-                case ALLEGRO_KEY_UP:
-                    if (!move.active()) {
-                        float y = float(int(player_pos.y + 1) % terrain.height) + 0.5f;
-                        move.activate(player_pos, {player_pos.x, y}, 10);
-                    } break;
-                case ALLEGRO_KEY_DOWN:
-                    if (!move.active()) {
-                        float y = player_pos.y - 1.f;
-                        y += float(y < 0) * terrain.height;
-                        move.activate(player_pos, {player_pos.x, y}, 10);
-                    } break;
-                } break;
             case ALLEGRO_EVENT_MOUSE_AXES:
                 scale += event.mouse.dz * 0.1f;
                 break;
@@ -224,11 +196,11 @@ int main(int argc, char **argv) {
         }
 
         /// UPDATE
-        // play = update(time_elapsed);
+        play = context.update(time_elapsed);
 
         /// FIXED UPDATE
         for (lag += time_elapsed; lag >= step_size; lag -= step_size) {
-            if (move.active()) player_pos = move.step();
+            player.step();
         }
 
         /// RENDER
@@ -237,7 +209,7 @@ int main(int argc, char **argv) {
             title, {Align::CENTER_X, Align::CENTER_Y}, 2.f, 0.f, font, al_color_name("snow"), "Hello, World!",
             WavyTextEffect(100.f,8.f,time_current*75.0),
             RainbowTextEffect(time_current*100.0));
-        render(terrain, tileset, viewport, player_pos, tile_size * scale);
+        render(terrain, tileset, viewport, player.position, tile_size * scale);
         viewport.draw_outline(al_color_name("snow"), -1);
         //al_draw_line(DISPLAY_WIDTH / 2.f, 0.f, DISPLAY_WIDTH / 2.f, DISPLAY_HEIGHT, al_color_name("white"), 0.f);
         //al_draw_line(0.f, DISPLAY_HEIGHT / 2.f, DISPLAY_WIDTH, DISPLAY_HEIGHT / 2.f, al_color_name("white"), 0.f);
@@ -246,13 +218,13 @@ int main(int argc, char **argv) {
         time_prior = time_current;
         time_current = al_get_time();
     }
+    ///////////////////////////////////////////////////////////////////////////////////
 
     al_destroy_font(font);
     al_destroy_bitmap(tileset);
     al_destroy_event_queue(event_queue);
     al_destroy_display(display);
 
-    //printf("EXIT\n");
     return 0;
 }
 
